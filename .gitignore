@@ -1,0 +1,38 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+tfplan
+tfplan.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Credentials (NEVER commit)
+.env
+*.pem
+*.key
+aws_credentials
+azure_credentials
+backend-*.hcl.local
+
+# Outputs
+stratus-inventory.json
+inventory.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Drafts (source documentation)
+/drafts/
