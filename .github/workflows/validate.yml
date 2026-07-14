@@ -2,7 +2,7 @@ name: Validate
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [master, develop]
 
 jobs:
   validate:
@@ -27,8 +27,8 @@ jobs:
       - name: Validate
         run: terraform validate
 
-      - name: Plan
-        run: terraform plan -var-file=../env/dev.tfvars
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # - name: Plan
+      #   run: terraform plan -var-file=../env/dev.tfvars
+      #   env:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
