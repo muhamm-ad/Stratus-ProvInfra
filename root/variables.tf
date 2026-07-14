@@ -1,11 +1,11 @@
 variable "environment" {
-  description = "Environment name (dev, staging, prod)"
+  description = "Environment name (dev, prod)"
   type        = string
   default     = "dev"
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "environment must be dev, staging, or prod"
+    condition     = contains(["dev", "prod"], var.environment)
+    error_message = "environment must be dev or prod"
   }
 }
 
@@ -18,12 +18,6 @@ variable "project_name" {
     condition     = length(var.project_name) <= 20 && can(regex("^[a-z][a-z0-9-]*$", var.project_name))
     error_message = "project_name must start with lowercase letter and contain only lowercase letters, numbers, and hyphens"
   }
-}
-
-variable "cost_center" {
-  description = "Cost center tag for billing"
-  type        = string
-  default     = "engineering"
 }
 
 variable "owner_email" {
@@ -164,7 +158,7 @@ variable "windows_instance_type" {
 variable "ssh_public_key_path" {
   description = "Path to SSH public key for Linux VMs (AWS)"
   type        = string
-  default     = "../keys/stratus-terraform.pub"
+  default     = "../keys/stratus-provinfra.pub"
 }
 
 # RDP Windows Admin Password (Azure, GCP)

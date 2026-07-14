@@ -1,10 +1,8 @@
 # Development environment configuration
-# Usage: terraform apply -var-file=../env/dev.tfvars
 
 environment  = "dev"
 project_name = "stratus"
-cost_center  = "engineering"
-owner_email  = "devops@example.com"
+owner_email  = "134101309+muhamm-ad@users.noreply.github.com"
 
 # AWS
 aws_region   = "us-east-1"
@@ -14,16 +12,17 @@ enable_aws   = true
 # Azure
 azure_location  = "eastus"
 azure_vnet_cidr = "10.1.0.0/16"
-enable_azure    = true
+enable_azure    = false
 
 # GCP
+# gcp_project_id   empty by default
 gcp_region       = "us-central1"
 gcp_network_cidr = "10.2.0.0/16"
-enable_gcp       = true
+enable_gcp       = false
 
 # VM Configuration
-linux_vm_count   = 2
-windows_vm_count = 2
+linux_vm_count   = 1
+windows_vm_count = 1
 
 linux_instance_type = {
   aws   = "t3.micro"
@@ -38,11 +37,9 @@ windows_instance_type = {
 }
 
 # SSH/RDP Credentials
+ssh_public_key_path    = "../keys/stratus-provinfra.pub"
 windows_admin_username = "azureuser"
-# Set windows_admin_password via env var: export TF_VAR_windows_admin_password='MyP@ssw0rd'
+# Set windows_admin_password via env var: export TF_VAR_windows_admin_password='MyP@ssw0rd123'
 
 additional_tags = {
-  Environment = "development"
-  CostCenter  = "engineering"
-  Managed     = "terraform"
 }

@@ -1,30 +1,12 @@
-# Shared Modules (always loaded — no conditionals)
-
-module "shared_naming" {
-  source = "../modules/shared/naming"
-
-  environment  = var.environment
-  project_name = var.project_name
-}
-
-module "shared_tags" {
-  source = "../modules/shared/tags"
-
-  environment  = var.environment
-  project_name = var.project_name
-  owner_email  = var.owner_email
-  cost_center  = var.cost_center
-
-  additional_tags = var.additional_tags
-}
-
+# ----------------------------------------------------------------------------------------------------------------------
 # AWS Resources (conditional on var.enable_aws)
+# ----------------------------------------------------------------------------------------------------------------------
 
 module "aws_vpc" {
   count  = var.enable_aws ? 1 : 0
   source = "../modules/aws/vpc"
 
-  name_prefix = local.aws_prefix
+  name_prefix = local.name_prefix
   cidr_block  = var.aws_vpc_cidr
   region      = var.aws_region
 
@@ -46,10 +28,10 @@ module "aws_security" {
   count  = var.enable_aws ? 1 : 0
   source = "../modules/aws/security"
 
-  name_prefix = local.aws_prefix
+  name_prefix = local.name_prefix
   vpc_id      = module.aws_vpc[0].vpc_id
 
-  ssh_key_name        = "stratus-${var.environment}"
+  ssh_key_name        = "${local.name_prefix}_key"
   ssh_public_key_path = var.ssh_public_key_path
 
   tags = local.common_tags
@@ -59,7 +41,7 @@ module "aws_compute" {
   count  = var.enable_aws ? 1 : 0
   source = "../modules/aws/compute"
 
-  name_prefix = local.aws_prefix
+  name_prefix = local.name_prefix
 
   linux_instances = {
     count             = var.linux_vm_count
@@ -79,14 +61,27 @@ module "aws_compute" {
   tags = local.common_tags
 }
 
+# Data source for AWS availability zones
+data "aws_availability_zones" "available" {
+  count = var.enable_aws ? 1 : 0
+  state = "available"
+  filter {
+    name   = "region-name"
+    values = [var.aws_region]
+  }
+}
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 # Azure Resources (conditional on var.enable_azure)
+# ----------------------------------------------------------------------------------------------------------------------
 
 module "azure_network" {
   count  = var.enable_azure ? 1 : 0
   source = "../modules/azure/network"
 
-  name_prefix         = local.azure_prefix
-  resource_group_name = coalesce(var.azure_resource_group_name, "${local.azure_prefix}-rg")
+  name_prefix         = local.name_prefix
+  resource_group_name = coalesce(var.azure_resource_group_name, "${local.name_prefix}_rg")
   location            = var.azure_location
   vnet_cidr           = var.azure_vnet_cidr
   linux_count         = var.linux_vm_count
@@ -107,7 +102,7 @@ module "azure_nsg" {
   count  = var.enable_azure ? 1 : 0
   source = "../modules/azure/nsg"
 
-  name_prefix         = local.azure_prefix
+  name_prefix         = local.name_prefix
   resource_group_name = module.azure_network[0].resource_group_name
   location            = var.azure_location
 
@@ -118,7 +113,7 @@ module "azure_compute" {
   count  = var.enable_azure ? 1 : 0
   source = "../modules/azure/compute"
 
-  name_prefix         = local.azure_prefix
+  name_prefix         = local.name_prefix
   resource_group_name = module.azure_network[0].resource_group_name
   location            = var.azure_location
   ssh_public_key_path = var.ssh_public_key_path
@@ -143,13 +138,15 @@ module "azure_compute" {
   tags = local.common_tags
 }
 
+# ----------------------------------------------------------------------------------------------------------------------
 # GCP Resources (conditional on var.enable_gcp)
+# ----------------------------------------------------------------------------------------------------------------------
 
 module "gcp_network" {
   count  = var.enable_gcp ? 1 : 0
   source = "../modules/gcp/network"
 
-  name_prefix  = local.gcp_prefix
+  name_prefix  = local.name_prefix
   project_id   = var.gcp_project_id
   region       = var.gcp_region
   network_cidr = var.gcp_network_cidr
@@ -170,7 +167,7 @@ module "gcp_firewall" {
   count  = var.enable_gcp ? 1 : 0
   source = "../modules/gcp/firewall"
 
-  name_prefix  = local.gcp_prefix
+  name_prefix  = local.name_prefix
   project_id   = var.gcp_project_id
   network_name = module.gcp_network[0].network_name
 
@@ -181,7 +178,7 @@ module "gcp_compute" {
   count  = var.enable_gcp ? 1 : 0
   source = "../modules/gcp/compute"
 
-  name_prefix = local.gcp_prefix
+  name_prefix = local.name_prefix
   project_id  = var.gcp_project_id
   region      = var.gcp_region
 
@@ -200,14 +197,4 @@ module "gcp_compute" {
   }
 
   tags = local.common_tags
-}
-
-# Data source for AWS availability zones
-data "aws_availability_zones" "available" {
-  count = var.enable_aws ? 1 : 0
-  state = "available"
-  filter {
-    name   = "region-name"
-    values = [var.aws_region]
-  }
 }
