@@ -9,6 +9,7 @@ variable "linux_instances" {
     subnet_id         = string
     security_group_id = string
     key_name          = string
+    user_data         = string
   })
 }
 
@@ -18,6 +19,8 @@ variable "windows_instances" {
     instance_type     = string
     subnet_id         = string
     security_group_id = string
+    key_name          = string
+    user_data         = string
   })
 }
 

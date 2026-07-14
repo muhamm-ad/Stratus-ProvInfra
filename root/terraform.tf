@@ -29,7 +29,10 @@ terraform {
 
 # AWS Provider
 provider "aws" {
-  region = var.aws_region
+  region     = var.providers.aws.region
+  access_key = var.providers.aws.access_key
+  secret_key = var.providers.aws.secret_key
+  token      = var.providers.aws.access_token
 
   default_tags {
     tags = merge(
@@ -50,8 +53,8 @@ provider "azurerm" {
 
 # Google Provider
 provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
+  project = var.providers.gcp.project_id
+  region  = var.providers.gcp.region
 
   user_project_override = true
 }

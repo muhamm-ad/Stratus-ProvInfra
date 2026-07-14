@@ -4,13 +4,13 @@ output "deployment_summary" {
     environment  = var.environment
     project_name = var.project_name
     deployed_providers = {
-      aws   = var.enable_aws
-      azure = var.enable_azure
-      gcp   = var.enable_gcp
+      aws   = local.enable_aws
+      azure = local.enable_azure
+      gcp   = local.enable_gcp
     }
     vm_counts = {
-      linux   = var.linux_vm_count
-      windows = var.windows_vm_count
+      linux   = var.instances.linux.count
+      windows = var.instances.windows.count
     }
   }
 }
@@ -126,8 +126,8 @@ output "gcp_instances" {
 output "inventory" {
   description = "Complete VM inventory across all providers (formatted for Stratus Gateway)"
   value = {
-    aws = var.enable_aws ? {
-      total_vms = var.linux_vm_count + var.windows_vm_count
+    aws = local.enable_aws ? {
+      total_vms = var.instances.linux.count + var.instances.windows.count
       vms = concat(
         [for vm in try(module.aws_compute[0].linux_instances, []) : {
           id       = vm.id
@@ -135,7 +135,7 @@ output "inventory" {
           provider = "aws"
           os       = "linux"
           ip       = vm.public_ip != "" ? vm.public_ip : vm.private_ip
-          region   = var.aws_region
+          region   = var.providers.aws.region
           state    = "running"
         }],
         [for vm in try(module.aws_compute[0].windows_instances, []) : {
@@ -144,14 +144,14 @@ output "inventory" {
           provider = "aws"
           os       = "windows"
           ip       = vm.private_ip
-          region   = var.aws_region
+          region   = var.providers.aws.region
           state    = "running"
         }]
       )
     } : null
 
-    azure = var.enable_azure ? {
-      total_vms = var.linux_vm_count + var.windows_vm_count
+    azure = local.enable_azure ? {
+      total_vms = var.instances.linux.count + var.instances.windows.count
       vms = concat(
         [for vm in try(module.azure_compute[0].linux_instances, []) : {
           id       = vm.id
@@ -159,7 +159,7 @@ output "inventory" {
           provider = "azure"
           os       = "linux"
           ip       = vm.private_ip
-          region   = var.azure_location
+          region   = var.providers.azure.location
           state    = "running"
         }],
         [for vm in try(module.azure_compute[0].windows_instances, []) : {
@@ -168,14 +168,14 @@ output "inventory" {
           provider = "azure"
           os       = "windows"
           ip       = vm.private_ip
-          region   = var.azure_location
+          region   = var.providers.azure.location
           state    = "running"
         }]
       )
     } : null
 
-    gcp = var.enable_gcp ? {
-      total_vms = var.linux_vm_count + var.windows_vm_count
+    gcp = local.enable_gcp ? {
+      total_vms = var.instances.linux.count + var.instances.windows.count
       vms = concat(
         [for vm in try(module.gcp_compute[0].linux_instances, []) : {
           id       = vm.id
@@ -183,7 +183,7 @@ output "inventory" {
           provider = "gcp"
           os       = "linux"
           ip       = try(vm.external_ip, vm.internal_ip)
-          region   = var.gcp_region
+          region   = var.providers.gcp.region
           state    = "running"
         }],
         [for vm in try(module.gcp_compute[0].windows_instances, []) : {
@@ -192,7 +192,7 @@ output "inventory" {
           provider = "gcp"
           os       = "windows"
           ip       = vm.internal_ip
-          region   = var.gcp_region
+          region   = var.providers.gcp.region
           state    = "running"
         }]
       )

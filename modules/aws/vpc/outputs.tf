@@ -9,7 +9,7 @@ output "vpc_cidr" {
 }
 
 output "subnet_ids" {
-  description = "Subnet IDs by tier"
+  description = "Subnet IDs by workload"
   value = {
     linux   = aws_subnet.linux.id
     windows = aws_subnet.windows.id
@@ -29,22 +29,7 @@ output "igw_id" {
   value       = aws_internet_gateway.main.id
 }
 
-output "nat_gateway_id" {
-  description = "NAT Gateway ID"
-  value       = aws_nat_gateway.main.id
-}
-
-output "nat_gateway_public_ip" {
-  description = "NAT Gateway public IP (Elastic IP)"
-  value       = aws_eip.nat.public_ip
-}
-
 output "route_table_public_id" {
   description = "Public route table ID"
   value       = aws_route_table.public.id
-}
-
-output "route_table_private_id" {
-  description = "Private route table ID"
-  value       = aws_route_table.private.id
 }

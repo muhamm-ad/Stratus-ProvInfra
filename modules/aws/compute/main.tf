@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-data "aws_ami" "ubuntu" {
+data "aws_ami" "linux" {
   most_recent = true
   owners      = ["099720109477"]
 
@@ -35,11 +35,12 @@ data "aws_ami" "windows" {
 resource "aws_instance" "linux" {
   count = var.linux_instances.count
 
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = data.aws_ami.linux.id
   instance_type          = var.linux_instances.instance_type
   subnet_id              = var.linux_instances.subnet_id
   vpc_security_group_ids = [var.linux_instances.security_group_id]
   key_name               = var.linux_instances.key_name
+  user_data              = var.linux_instances.user_data
 
   root_block_device {
     volume_type           = "gp3"
@@ -53,7 +54,7 @@ resource "aws_instance" "linux" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.name_prefix}-linux-${count.index + 1}"
+      Name = "${var.name_prefix}_linux_${count.index + 1}"
       OS   = "linux"
     }
   )
@@ -66,6 +67,8 @@ resource "aws_instance" "windows" {
   instance_type          = var.windows_instances.instance_type
   subnet_id              = var.windows_instances.subnet_id
   vpc_security_group_ids = [var.windows_instances.security_group_id]
+  key_name               = var.windows_instances.key_name
+  user_data              = var.windows_instances.user_data
 
   root_block_device {
     volume_type           = "gp3"
@@ -79,7 +82,7 @@ resource "aws_instance" "windows" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.name_prefix}-windows-${count.index + 1}"
+      Name = "${var.name_prefix}_windows_${count.index + 1}"
       OS   = "windows"
     }
   )

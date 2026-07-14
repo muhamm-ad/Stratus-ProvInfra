@@ -9,12 +9,12 @@ terraform {
 
 resource "aws_security_group" "main" {
   vpc_id      = var.vpc_id
-  name        = var.name_prefix
+  name        = "${var.name_prefix}_sg"
   description = "Security group for ${var.name_prefix}"
 
   tags = merge(
     var.tags,
-    { Name = var.name_prefix }
+    { Name = "${var.name_prefix}_sg" }
   )
 }
 
@@ -25,7 +25,7 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = { Name = "${var.name_prefix}-ssh" }
+  tags = { Name = "${var.name_prefix}_ssh" }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "rdp" {
@@ -35,7 +35,7 @@ resource "aws_vpc_security_group_ingress_rule" "rdp" {
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = { Name = "${var.name_prefix}-rdp" }
+  tags = { Name = "${var.name_prefix}_rdp" }
 }
 
 resource "aws_vpc_security_group_egress_rule" "all" {
@@ -45,15 +45,15 @@ resource "aws_vpc_security_group_egress_rule" "all" {
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = { Name = "${var.name_prefix}-egress" }
+  tags = { Name = "${var.name_prefix}_egress" }
 }
 
 resource "aws_key_pair" "main" {
-  key_name   = var.ssh_key_name
+  key_name   = "${var.name_prefix}_key"
   public_key = file(var.ssh_public_key_path)
 
   tags = merge(
     var.tags,
-    { Name = var.ssh_key_name }
+    { Name = "${var.name_prefix}_key" }
   )
 }
