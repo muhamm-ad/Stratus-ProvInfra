@@ -5,7 +5,7 @@ echo "Creating remote state backends for Stratus-ProvInfra..."
 
 # AWS S3 + DynamoDB
 if command -v aws &>/dev/null; then
-  for env in dev staging prod; do
+  for env in dev prod; do
     BUCKET="stratus-provinfra-state-${env}"
     echo "Creating S3 bucket: ${BUCKET}"
     aws s3api create-bucket --bucket "${BUCKET}" --region us-east-1 2>/dev/null || true
