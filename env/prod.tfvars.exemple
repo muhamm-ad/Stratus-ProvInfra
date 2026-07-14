@@ -4,7 +4,7 @@ environment  = "prod"
 project_name = "stratus"
 owner_email  = "134101309+muhamm-ad@users.noreply.github.com"
 
-providers = {
+cloud_providers = {
   aws = {
     region       = "us-east-1"
     access_key   = ""

@@ -10,18 +10,12 @@ output "vpc_cidr" {
 
 output "subnet_ids" {
   description = "Subnet IDs by workload"
-  value = {
-    linux   = aws_subnet.linux.id
-    windows = aws_subnet.windows.id
-  }
+  value       = { for workload, subnet in aws_subnet.workload : workload => subnet.id }
 }
 
 output "subnet_cidrs" {
   description = "Subnet CIDR blocks"
-  value = {
-    linux   = aws_subnet.linux.cidr_block
-    windows = aws_subnet.windows.cidr_block
-  }
+  value       = { for workload, subnet in aws_subnet.workload : workload => subnet.cidr_block }
 }
 
 output "igw_id" {

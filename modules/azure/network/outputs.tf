@@ -7,10 +7,7 @@ output "vnet_id" {
 }
 
 output "subnet_ids" {
-  value = {
-    linux   = azurerm_subnet.linux.id
-    windows = azurerm_subnet.windows.id
-  }
+  value = { for workload, subnet in azurerm_subnet.workload : workload => subnet.id }
 }
 
 output "public_ip_ids" {

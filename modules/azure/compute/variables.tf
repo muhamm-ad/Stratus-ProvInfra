@@ -11,6 +11,7 @@ variable "location" {
 }
 
 variable "linux_instances" {
+  description = "Linux instance configuration. Null disables Linux instances."
   type = object({
     count                     = number
     vm_size                   = string
@@ -18,9 +19,11 @@ variable "linux_instances" {
     network_security_group_id = string
     public_ip_ids             = list(string)
   })
+  default = null
 }
 
 variable "windows_instances" {
+  description = "Windows instance configuration. Null disables Windows instances."
   type = object({
     count                     = number
     vm_size                   = string
@@ -29,6 +32,7 @@ variable "windows_instances" {
     admin_username            = string
     admin_password            = string
   })
+  default   = null
   sensitive = true
 }
 

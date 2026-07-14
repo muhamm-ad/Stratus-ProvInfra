@@ -31,73 +31,72 @@ variable "owner_email" {
   }
 }
 
-variable "providers" {
-  description = "Cloud provider configurations"
-  type        = map(any)
-  default = {
-    aws = {
-      region       = "us-east-1"
-      access_key   = ""
-      secret_key   = ""
-      access_token = ""
-      vpc_cidr     = "10.0.0.0/16"
-    }
-    azure = {
-      resource_group_name = ""
-      location            = "eastus"
-      vnet_cidr           = "10.1.0.0/16"
-    }
-    gcp = {
-      project_id   = ""
-      region       = "us-central1"
-      network_cidr = "10.2.0.0/16"
-    }
-  }
+variable "cloud_providers" {
+  description = "Cloud provider configurations. Include only the providers you want to deploy."
+  type = object({
+    aws = optional(object({
+      region       = string
+      access_key   = string
+      secret_key   = string
+      access_token = string
+      vpc_cidr     = string
+    }))
+    azure = optional(object({
+      resource_group_name = string
+      location            = string
+      vnet_cidr           = string
+    }))
+    gcp = optional(object({
+      project_id   = string
+      region       = string
+      network_cidr = string
+    }))
+  })
 
   validation {
-    condition     = contains(keys(var.providers), "aws") || contains(keys(var.providers), "azure") || contains(keys(var.providers), "gcp")
-    error_message = "providers must contain aws, azure, or gcp"
+    condition     = var.cloud_providers.aws != null || var.cloud_providers.azure != null || var.cloud_providers.gcp != null
+    error_message = "providers must include at least one of aws, azure, or gcp"
   }
 }
 
 variable "instances" {
-  description = "Instances configurations"
-  type        = map(any)
-  default = {
-    linux = {
-      count = 1
-      instance_type = {
-        aws   = "t3.micro"
-        azure = "Standard_B1s"
-        gcp   = "e2-micro"
-      }
-      cidr = {
-        aws   = "10.0.1.0/24"
-        azure = "10.1.1.0/24"
-        gcp   = "10.2.1.0/24"
-      }
-    }
-    windows = {
-      count = 1
-      instance_type = {
-        aws   = "t3.small"
-        azure = "Standard_B2s"
-        gcp   = "e2-small"
-      }
-      cidr = {
-        aws   = "10.0.2.0/24"
-        azure = "10.1.2.0/24"
-        gcp   = "10.2.2.0/24"
-      }
-    }
-  }
+  description = "Instance configurations. Include only the operating systems you want to deploy."
+  type = object({
+    linux = optional(object({
+      count = number
+      instance_type = object({
+        aws   = string
+        azure = string
+        gcp   = string
+      })
+      cidr = object({
+        aws   = string
+        azure = string
+        gcp   = string
+      })
+    }))
+    windows = optional(object({
+      count = number
+      instance_type = object({
+        aws   = string
+        azure = string
+        gcp   = string
+      })
+      cidr = object({
+        aws   = string
+        azure = string
+        gcp   = string
+      })
+    }))
+  })
+  default = {}
+
   validation {
-    condition     = contains(keys(var.instances), "linux") && contains(keys(var.instances), "windows")
-    error_message = "instances must contain linux and windows"
-  }
-  validation {
-    condition     = contains(keys(var.instances.linux), "count") && contains(keys(var.instances.linux), "instance_type") && contains(keys(var.instances.windows), "count") && contains(keys(var.instances.windows), "instance_type")
-    error_message = "instances must contain count and instance_type"
+    condition = (
+      try(var.instances.linux.count >= 0, true) &&
+      try(var.instances.windows.count >= 0, true)
+    )
+    error_message = "Instance counts must be zero or greater."
   }
 }
 

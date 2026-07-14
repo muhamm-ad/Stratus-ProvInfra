@@ -8,36 +8,36 @@ terraform {
 }
 
 resource "azurerm_network_interface" "linux" {
-  count = var.linux_instances.count
+  count = try(var.linux_instances.count, 0)
 
-  name                = "${var.name_prefix}-nic-linux-${count.index + 1}"
+  name                = "${var.name_prefix}_nic_linux_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = var.linux_instances.subnet_id
+    subnet_id                     = try(var.linux_instances.subnet_id, null)
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = var.linux_instances.public_ip_ids[count.index]
+    public_ip_address_id          = try(var.linux_instances.public_ip_ids[count.index], null)
   }
 
   tags = var.tags
 }
 
 resource "azurerm_network_interface_security_group_association" "linux" {
-  count = var.linux_instances.count
+  count = try(var.linux_instances.count, 0)
 
   network_interface_id      = azurerm_network_interface.linux[count.index].id
-  network_security_group_id = var.linux_instances.network_security_group_id
+  network_security_group_id = try(var.linux_instances.network_security_group_id, null)
 }
 
 resource "azurerm_linux_virtual_machine" "main" {
-  count = var.linux_instances.count
+  count = try(var.linux_instances.count, 0)
 
-  name                = "${var.name_prefix}-linux-${count.index + 1}"
+  name                = "${var.name_prefix}_linux_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  size                = var.linux_instances.vm_size
+  size                = try(var.linux_instances.vm_size, null)
   admin_username      = "azureuser"
 
   network_interface_ids = [
@@ -64,20 +64,20 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   tags = merge(
     var.tags,
-    { Name = "${var.name_prefix}-linux-${count.index + 1}" }
+    { Name = "${var.name_prefix}_linux_${count.index + 1}" }
   )
 }
 
 resource "azurerm_network_interface" "windows" {
-  count = var.windows_instances.count
+  count = try(var.windows_instances.count, 0)
 
-  name                = "${var.name_prefix}-nic-windows-${count.index + 1}"
+  name                = "${var.name_prefix}_nic_windows_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = var.windows_instances.subnet_id
+    subnet_id                     = try(var.windows_instances.subnet_id, null)
     private_ip_address_allocation = "Dynamic"
   }
 
@@ -85,21 +85,21 @@ resource "azurerm_network_interface" "windows" {
 }
 
 resource "azurerm_network_interface_security_group_association" "windows" {
-  count = var.windows_instances.count
+  count = try(var.windows_instances.count, 0)
 
   network_interface_id      = azurerm_network_interface.windows[count.index].id
-  network_security_group_id = var.windows_instances.network_security_group_id
+  network_security_group_id = try(var.windows_instances.network_security_group_id, null)
 }
 
 resource "azurerm_windows_virtual_machine" "main" {
-  count = var.windows_instances.count
+  count = try(var.windows_instances.count, 0)
 
-  name                = "${var.name_prefix}-windows-${count.index + 1}"
+  name                = "${var.name_prefix}_windows_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  size                = var.windows_instances.vm_size
-  admin_username      = var.windows_instances.admin_username
-  admin_password      = var.windows_instances.admin_password
+  size                = try(var.windows_instances.vm_size, null)
+  admin_username      = try(var.windows_instances.admin_username, null)
+  admin_password      = try(var.windows_instances.admin_password, null)
 
   network_interface_ids = [
     azurerm_network_interface.windows[count.index].id
@@ -120,6 +120,6 @@ resource "azurerm_windows_virtual_machine" "main" {
 
   tags = merge(
     var.tags,
-    { Name = "${var.name_prefix}-windows-${count.index + 1}" }
+    { Name = "${var.name_prefix}_windows_${count.index + 1}" }
   )
 }

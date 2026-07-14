@@ -7,15 +7,9 @@ output "network_id" {
 }
 
 output "subnet_names" {
-  value = {
-    linux   = google_compute_subnetwork.linux.name
-    windows = google_compute_subnetwork.windows.name
-  }
+  value = { for workload, subnet in google_compute_subnetwork.workload : workload => subnet.name }
 }
 
 output "subnet_ids" {
-  value = {
-    linux   = google_compute_subnetwork.linux.id
-    windows = google_compute_subnetwork.windows.id
-  }
+  value = { for workload, subnet in google_compute_subnetwork.workload : workload => subnet.id }
 }

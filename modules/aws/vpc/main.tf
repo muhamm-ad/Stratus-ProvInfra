@@ -20,37 +20,32 @@ resource "aws_vpc" "main" {
   )
 }
 
-resource "aws_subnet" "linux" {
+resource "aws_subnet" "workload" {
+  for_each = var.subnet_configs
+
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.subnet_configs.linux.cidr
-  availability_zone       = var.subnet_configs.linux.az
+  cidr_block              = each.value.cidr
+  availability_zone       = each.value.az
   map_public_ip_on_launch = true
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.name_prefix}_subnet_linux"
+      Name = "${var.name_prefix}_subnet_${each.key}"
       Tier = "public"
     }
   )
 }
 
-resource "aws_subnet" "windows" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.subnet_configs.windows.cidr
-  availability_zone       = var.subnet_configs.windows.az
-  map_public_ip_on_launch = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.name_prefix}_subnet_windows"
-      Tier = "public"
-    }
-  )
+moved {
+  from = aws_subnet.linux
+  to   = aws_subnet.workload["linux"]
 }
 
-
+moved {
+  from = aws_subnet.windows
+  to   = aws_subnet.workload["windows"]
+}
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -79,14 +74,21 @@ resource "aws_route_table" "public" {
   )
 }
 
-resource "aws_route_table_association" "linux" {
-  subnet_id      = aws_subnet.linux.id
+resource "aws_route_table_association" "workload" {
+  for_each = aws_subnet.workload
+
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "windows" {
-  subnet_id      = aws_subnet.windows.id
-  route_table_id = aws_route_table.public.id
+moved {
+  from = aws_route_table_association.linux
+  to   = aws_route_table_association.workload["linux"]
+}
+
+moved {
+  from = aws_route_table_association.windows
+  to   = aws_route_table_association.workload["windows"]
 }
 
 # resource "aws_network_acl" "main" {

@@ -15,7 +15,7 @@ resource "azurerm_resource_group" "main" {
 }
 
 resource "azurerm_virtual_network" "main" {
-  name                = "${var.name_prefix}-vnet"
+  name                = "${var.name_prefix}_vnet"
   address_space       = [var.vnet_cidr]
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
@@ -23,24 +23,29 @@ resource "azurerm_virtual_network" "main" {
   tags = var.tags
 }
 
-resource "azurerm_subnet" "linux" {
-  name                 = "${var.name_prefix}-subnet-linux"
+resource "azurerm_subnet" "workload" {
+  for_each = var.subnet_configs
+
+  name                 = "${var.name_prefix}_subnet_${each.key}"
   virtual_network_name = azurerm_virtual_network.main.name
   resource_group_name  = azurerm_resource_group.main.name
-  address_prefixes     = [var.subnet_configs.linux.cidr]
+  address_prefixes     = [each.value.cidr]
 }
 
-resource "azurerm_subnet" "windows" {
-  name                 = "${var.name_prefix}-subnet-windows"
-  virtual_network_name = azurerm_virtual_network.main.name
-  resource_group_name  = azurerm_resource_group.main.name
-  address_prefixes     = [var.subnet_configs.windows.cidr]
+moved {
+  from = azurerm_subnet.linux
+  to   = azurerm_subnet.workload["linux"]
+}
+
+moved {
+  from = azurerm_subnet.windows
+  to   = azurerm_subnet.workload["windows"]
 }
 
 resource "azurerm_public_ip" "linux" {
   count = var.linux_count
 
-  name                = "${var.name_prefix}-pip-linux-${count.index + 1}"
+  name                = "${var.name_prefix}_pip_linux_${count.index + 1}"
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
   allocation_method   = "Static"

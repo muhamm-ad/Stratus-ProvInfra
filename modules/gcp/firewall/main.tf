@@ -8,7 +8,7 @@ terraform {
 }
 
 resource "google_compute_firewall" "ssh" {
-  name      = "${var.name_prefix}-allow-ssh"
+  name      = "${var.name_prefix}_allow_ssh"
   network   = var.network_name
   project   = var.project_id
   direction = "INGRESS"
@@ -22,7 +22,7 @@ resource "google_compute_firewall" "ssh" {
 }
 
 resource "google_compute_firewall" "rdp" {
-  name      = "${var.name_prefix}-allow-rdp"
+  name      = "${var.name_prefix}_allow_rdp"
   network   = var.network_name
   project   = var.project_id
   direction = "INGRESS"
@@ -36,7 +36,7 @@ resource "google_compute_firewall" "rdp" {
 }
 
 resource "google_compute_firewall" "iap" {
-  name      = "${var.name_prefix}-allow-iap"
+  name      = "${var.name_prefix}_allow_iap"
   network   = var.network_name
   project   = var.project_id
   direction = "INGRESS"

@@ -8,37 +8,41 @@ terraform {
 }
 
 resource "google_compute_network" "main" {
-  name                    = "${var.name_prefix}-vpc"
+  name                    = "${var.name_prefix}_vpc"
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
   project                 = var.project_id
 }
 
-resource "google_compute_subnetwork" "linux" {
-  name          = "${var.name_prefix}-subnet-linux"
-  ip_cidr_range = var.subnet_configs.linux.cidr
+resource "google_compute_subnetwork" "workload" {
+  for_each = var.subnet_configs
+
+  name          = "${var.name_prefix}_subnet_${each.key}"
+  ip_cidr_range = each.value.cidr
   region        = var.region
   network       = google_compute_network.main.id
   project       = var.project_id
 }
 
-resource "google_compute_subnetwork" "windows" {
-  name          = "${var.name_prefix}-subnet-windows"
-  ip_cidr_range = var.subnet_configs.windows.cidr
-  region        = var.region
-  network       = google_compute_network.main.id
-  project       = var.project_id
+moved {
+  from = google_compute_subnetwork.linux
+  to   = google_compute_subnetwork.workload["linux"]
+}
+
+moved {
+  from = google_compute_subnetwork.windows
+  to   = google_compute_subnetwork.workload["windows"]
 }
 
 resource "google_compute_router" "main" {
-  name    = "${var.name_prefix}-router"
+  name    = "${var.name_prefix}_router"
   region  = var.region
   network = google_compute_network.main.id
   project = var.project_id
 }
 
 resource "google_compute_router_nat" "main" {
-  name                               = "${var.name_prefix}-nat"
+  name                               = "${var.name_prefix}_nat"
   router                             = google_compute_router.main.name
   region                             = google_compute_router.main.region
   project                            = var.project_id

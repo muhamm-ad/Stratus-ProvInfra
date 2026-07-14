@@ -20,17 +20,14 @@ variable "region" {
 }
 
 variable "subnet_configs" {
-  description = "Subnet configurations"
+  description = "Subnet configurations keyed by enabled operating system"
   type = map(object({
     cidr = string
     az   = string
   }))
 
   validation {
-    condition = (
-      can(cidrhost(var.subnet_configs.linux.cidr, 0)) &&
-      can(cidrhost(var.subnet_configs.windows.cidr, 0))
-    )
+    condition     = alltrue([for config in values(var.subnet_configs) : can(cidrhost(config.cidr, 0))])
     error_message = "All subnet CIDRs must be valid IPv4 CIDR blocks"
   }
 }
