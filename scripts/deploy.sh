@@ -1,37 +1,45 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-ENV="${1:-dev}"
-PLAN_ONLY="${2:-}"
+CLOUD="${1:-}"
+ENV="${2:-dev}"
+PLAN_ONLY="${3:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="${SCRIPT_DIR}/../root"
+ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
 TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
 
 usage() {
   cat <<EOF
-Usage: $0 [dev|prod] [--plan-only]
+Usage: $0 <aws|azure|gcp> [dev|prod] [--plan-only]
 
-Deploy Stratus-ProvInfra using env/<environment>.tfvars.
+Deploy Stratus-ProvInfra to one cloud using root/<cloud> and
+env/<environment>.tfvars (shared across all three clouds - this only reads
+the cloud_providers.<cloud> slice of that file).
 
-Deployment scope is controlled in the tfvars file:
-  - cloud_providers: include only aws, azure, and/or gcp blocks to enable
-  - instances:       include only linux and/or windows blocks to provision VMs
+To deploy to more than one cloud, run this script once per cloud - each
+cloud is a fully independent root config with its own state.
 
 Examples:
-  $0 dev
-  $0 prod --plan-only
+  $0 aws dev
+  $0 azure prod --plan-only
 
 Before first run:
-  ./scripts/init.sh dev
+  ./scripts/init.sh aws dev
   cp env/dev.tfvars.exemple env/dev.tfvars
   ./scripts/generate-ssh-key.sh
 EOF
 }
 
-if [[ "${ENV}" == "-h" || "${ENV}" == "--help" ]]; then
+if [[ "${CLOUD}" == "-h" || "${CLOUD}" == "--help" || -z "${CLOUD}" ]]; then
   usage
   exit 0
+fi
+
+if [[ "${CLOUD}" != "aws" && "${CLOUD}" != "azure" && "${CLOUD}" != "gcp" ]]; then
+  echo "Invalid cloud: ${CLOUD}"
+  usage
+  exit 1
 fi
 
 if [ ! -f "${TFVARS}" ]; then
@@ -43,24 +51,24 @@ fi
 cd "${ROOT_DIR}"
 
 echo "==> Formatting..."
-terraform fmt -recursive ..
+terraform fmt -recursive ../..
 
 echo "==> Validating..."
 terraform validate
 
-echo "==> Planning (${ENV})..."
+echo "==> Planning (${CLOUD}/${ENV})..."
 terraform plan -var-file="${TFVARS}" -out=tfplan
 
 if [[ "${PLAN_ONLY}" == "--plan-only" ]]; then
-  echo "Plan saved to root/tfplan. Run 'terraform apply tfplan' to deploy."
+  echo "Plan saved to root/${CLOUD}/tfplan. Run 'terraform apply tfplan' to deploy."
   exit 0
 fi
 
 read -r -p "Apply plan? [y/N] " confirm
 if [[ "${confirm}" =~ ^[Yy]$ ]]; then
   terraform apply tfplan
-  terraform output -json inventory > "../stratus-inventory.json"
-  echo "Inventory exported to stratus-inventory.json"
+  terraform output -json inventory > "../../stratus-inventory-${CLOUD}.json"
+  echo "Inventory exported to stratus-inventory-${CLOUD}.json"
 else
-  echo "Apply cancelled. Plan saved to root/tfplan."
+  echo "Apply cancelled. Plan saved to root/${CLOUD}/tfplan."
 fi

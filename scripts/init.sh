@@ -1,28 +1,38 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-ENV="${1:-dev}"
+CLOUD="${1:-}"
+ENV="${2:-dev}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="${SCRIPT_DIR}/../root"
+ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
 
 usage() {
   cat <<EOF
-Usage: $0 [dev|prod]
+Usage: $0 <aws|azure|gcp> [dev|prod]
 
-Initialize Terraform and select (or create) the workspace for the given environment.
+Initialize Terraform and select (or create) the workspace for the given
+cloud's root config and environment.
 
-Each workspace keeps a separate local state file under root/.terraform/.
+Each cloud has its own root config (root/<cloud>/) with its own provider
+and state, but all three read the same env/<environment>.tfvars file -
+each just uses the cloud_providers.<cloud> slice relevant to it.
 
 Examples:
-  $0 dev
-  $0 prod
+  $0 aws dev
+  $0 azure prod
 EOF
 }
 
-if [[ "${ENV}" == "-h" || "${ENV}" == "--help" ]]; then
+if [[ "${CLOUD}" == "-h" || "${CLOUD}" == "--help" || -z "${CLOUD}" ]]; then
   usage
   exit 0
+fi
+
+if [[ "${CLOUD}" != "aws" && "${CLOUD}" != "azure" && "${CLOUD}" != "gcp" ]]; then
+  echo "Invalid cloud: ${CLOUD}"
+  usage
+  exit 1
 fi
 
 if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
@@ -33,7 +43,7 @@ fi
 
 cd "${ROOT_DIR}"
 
-echo "==> Initializing Terraform..."
+echo "==> Initializing Terraform (${CLOUD})..."
 terraform init
 
 echo "==> Selecting workspace: ${ENV}"
@@ -46,4 +56,4 @@ echo ""
 echo "Next steps:"
 echo "  cp env/${ENV}.tfvars.exemple env/${ENV}.tfvars"
 echo "  ./scripts/generate-ssh-key.sh"
-echo "  ./scripts/deploy.sh ${ENV}"
+echo "  ./scripts/deploy.sh ${CLOUD} ${ENV}"

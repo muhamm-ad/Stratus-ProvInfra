@@ -1,28 +1,35 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-ENV="${1:-dev}"
-CONFIRM="${2:-}"
+CLOUD="${1:-}"
+ENV="${2:-dev}"
+CONFIRM="${3:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="${SCRIPT_DIR}/../root"
+ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
 TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
 
 usage() {
   cat <<EOF
-Usage: $0 [dev|prod] --confirm
+Usage: $0 <aws|azure|gcp> [dev|prod] --confirm
 
-Destroy all resources managed for the given environment.
+Destroy all resources managed for the given cloud and environment.
 
 Examples:
-  $0 dev --confirm
-  $0 prod --confirm
+  $0 aws dev --confirm
+  $0 azure prod --confirm
 EOF
 }
 
-if [[ "${ENV}" == "-h" || "${ENV}" == "--help" ]]; then
+if [[ "${CLOUD}" == "-h" || "${CLOUD}" == "--help" || -z "${CLOUD}" ]]; then
   usage
   exit 0
+fi
+
+if [[ "${CLOUD}" != "aws" && "${CLOUD}" != "azure" && "${CLOUD}" != "gcp" ]]; then
+  echo "Invalid cloud: ${CLOUD}"
+  usage
+  exit 1
 fi
 
 if [ ! -f "${TFVARS}" ]; then
@@ -31,8 +38,8 @@ if [ ! -f "${TFVARS}" ]; then
 fi
 
 if [ "${CONFIRM}" != "--confirm" ]; then
-  echo "WARNING: This will destroy all resources in the ${ENV} environment."
-  echo "Run: $0 ${ENV} --confirm"
+  echo "WARNING: This will destroy all resources in ${CLOUD}/${ENV}."
+  echo "Run: $0 ${CLOUD} ${ENV} --confirm"
   exit 1
 fi
 

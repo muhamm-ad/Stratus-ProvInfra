@@ -60,6 +60,7 @@ security = {
   }
   windows = {
     username = "azureuser"
+    password = "changeme" # set a strong password before applying; keep the populated *.tfvars file untracked
   }
 }
 

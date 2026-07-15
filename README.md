@@ -40,20 +40,31 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 - **Environment-aware**: Separate configs for dev and prod
 - **RBAC-ready**: Tags enable Stratus access control
 - **Cost-tracked**: Unified tagging for billing and chargeback
-- **State management**: Local state per environment via Terraform workspaces (dev, prod)
+- **State management**: Local state per cloud, per environment via Terraform workspaces (dev, prod)
 
 ---
 
 ## Configuration Model
 
-Deployment scope is controlled in `env/*.tfvars` via two structured variables:
+Each cloud has its own independent root config — `root/aws/`, `root/azure/`, `root/gcp/` —
+each with its own provider, state, and Terraform workspaces. **Which cloud gets deployed
+is chosen by which root you run** (`./scripts/deploy.sh aws|azure|gcp ...`), not by which
+keys you populate in tfvars. This is a hard Terraform constraint, not a style choice:
+providers are configured for every declared `provider` block regardless of resource
+usage, so the only way to make a cloud provider truly optional is to keep it out of the
+root entirely when you're not using it. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+for the full rationale.
+
+All three roots read the **same** `env/*.tfvars` file, structured via two variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `cloud_providers` | Which clouds to deploy (`aws`, `azure`, `gcp`). At least one block is required. |
-| `instances` | Which operating systems to deploy (`linux`, `windows`). Defaults to `{}` (no VMs). |
+| `cloud_providers` | Connection details for `aws`, `azure`, `gcp`. Each root only reads its own slice, but you can fill in all three in one file. |
+| `instances` | Which operating systems to deploy (`linux`, `windows`), within whichever cloud you're running. Defaults to `{}` (no VMs). |
 
-Omit a provider or OS block entirely to skip provisioning it. When a block is present, all nested fields are required.
+Each root requires its own `cloud_providers.<cloud>` slice to be present (validated at
+`terraform validate` time). Omit an OS block entirely to skip provisioning it; when a
+block is present, all nested fields are required.
 
 ```hcl
 # AWS only, Linux only
@@ -107,21 +118,24 @@ cd stratus-provinfra
 
 # 3. Copy and edit environment config
 cp env/dev.tfvars.exemple env/dev.tfvars
-# Edit cloud_providers and instances to match your target deployment
+# Edit cloud_providers and instances to match your target deployment(s)
 
-# 4. Initialize workspace and deploy
-./scripts/init.sh dev
-./scripts/deploy.sh dev
+# 4. Initialize workspace and deploy - pick a cloud: aws, azure, or gcp
+./scripts/init.sh aws dev
+./scripts/deploy.sh aws dev
 
-# Or manually from root/:
-cd root
+# Or manually from root/<cloud>:
+cd root/aws
 terraform init
 terraform workspace select dev   # or: terraform workspace new dev
-terraform plan -var-file=../env/dev.tfvars -out=tfplan
+terraform plan -var-file=../../env/dev.tfvars -out=tfplan
 terraform apply tfplan
 
 # 5. Export inventory
-terraform output -json inventory > ../stratus-inventory.json
+terraform output -json inventory > ../../stratus-inventory-aws.json
+
+# To deploy to more than one cloud, repeat steps 4-5 for azure and/or gcp -
+# each cloud is a fully independent apply with its own state.
 ```
 
 For detailed setup, see [docs/QUICK_START.md](docs/QUICK_START.md).
@@ -130,41 +144,41 @@ For detailed setup, see [docs/QUICK_START.md](docs/QUICK_START.md).
 
 ## VM Inventory
 
-All VMs are exported in JSON format:
+Each cloud's `inventory` output is exported in JSON format, one file per cloud
+(`deploy.sh <cloud>` does this automatically after apply):
 
 ```json
 {
-  "aws": {
-    "total_vms": 2,
-    "vms": [
-      {
-        "id": "i-0123456789abc",
-        "name": "dev_stratus_linux_1",
-        "provider": "aws",
-        "os": "linux",
-        "ip": "203.0.113.1",
-        "region": "us-east-1",
-        "state": "running"
-      }
-    ]
-  },
-  "azure": null,
-  "gcp": null
+  "total_vms": 2,
+  "vms": [
+    {
+      "id": "i-0123456789abc",
+      "name": "dev_stratus_linux_1",
+      "provider": "aws",
+      "os": "linux",
+      "ip": "203.0.113.1",
+      "region": "us-east-1",
+      "state": "running"
+    }
+  ]
 }
 ```
 
-Disabled providers return `null` in the inventory output.
+To combine inventories from multiple clouds into one file, merge
+`stratus-inventory-aws.json`, `stratus-inventory-azure.json`, and
+`stratus-inventory-gcp.json` yourself (e.g. with `jq -n`) — a single apply only
+ever has one cloud's data.
 
 ---
 
 ## Cost Estimation
 
-| Environment | Instance Types | Monthly Cost |
+| Environment | Instance Types | Monthly Cost (per cloud) |
 |-------------|----------------|--------------|
 | **dev** | t3.micro, Standard_B1s, e2-micro | ~$5-10 |
 | **prod** | t3.large, Standard_D2s_v3, n1-standard-2 | ~$150-250 |
 
-Costs scale with the number of enabled providers and OS workloads.
+Costs scale with the number of clouds you deploy to and the OS workloads enabled on each.
 
 ---
 
@@ -172,19 +186,16 @@ Costs scale with the number of enabled providers and OS workloads.
 
 ### Deploy Only AWS
 
-Remove `azure` and `gcp` from `cloud_providers` in your tfvars:
+Just run the AWS root — the other clouds' roots simply aren't invoked, so their
+providers are never configured or authenticated to:
 
-```hcl
-cloud_providers = {
-  aws = {
-    region       = "us-east-1"
-    access_key   = ""
-    secret_key   = ""
-    access_token = ""
-    vpc_cidr     = "10.0.0.0/16"
-  }
-}
+```bash
+./scripts/deploy.sh aws dev
 ```
+
+Your `cloud_providers.azure`/`.gcp` blocks (if present in the shared tfvars) are
+ignored by this run; they only matter if you separately run `deploy.sh azure` or
+`deploy.sh gcp`.
 
 ### Deploy Only Linux VMs
 
@@ -213,7 +224,8 @@ instances = {
 }
 ```
 
-With three providers enabled, `count = 5` creates 5 Linux VMs per provider (15 total).
+Deployed via `deploy.sh aws`, `deploy.sh azure`, and `deploy.sh gcp`, `count = 5`
+creates 5 Linux VMs per cloud you actually ran (15 total across all three).
 
 ### Deploy Networking Only (No VMs)
 
@@ -221,12 +233,14 @@ With three providers enabled, `count = 5` creates 5 Linux VMs per provider (15 t
 instances = {}
 ```
 
-Provider networking (VPC, VNet, firewall rules) is still created for enabled `cloud_providers`.
+Networking (VPC, VNet, firewall rules) is still created for whichever cloud's root
+you run.
 
 ### Add Custom Tags
 
 ```bash
-terraform apply -var-file=../env/dev.tfvars \
+# from root/<cloud>
+terraform apply -var-file=../../env/dev.tfvars \
   -var='additional_tags={"Team":"Platform","CostCenter":"100"}'
 ```
 
@@ -237,15 +251,16 @@ terraform apply -var-file=../env/dev.tfvars \
 ### Best Practices
 
 - SSH keys managed locally (not in repo)
-- Windows passwords via environment variables (not in tfvars)
-- State files stored locally per workspace (gitignored; not committed)
+- Windows passwords set in an untracked `*.tfvars` file (or overridden via `TF_VAR_security`) — never committed
+- State files stored locally per cloud, per workspace (gitignored; not committed)
 - All VMs tagged for RBAC filtering
 - Security groups restrict SSH (22) and RDP (3389) to authorized sources
 
 ### Sensitive Data
 
 All sensitive outputs (passwords, keys) are marked `sensitive = true` in Terraform.
-State files live under `root/.terraform/` and are excluded from version control.
+State files live under `root/<cloud>/terraform.tfstate.d/<workspace>/` and are
+excluded from version control.
 
 ---
 

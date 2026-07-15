@@ -31,31 +31,16 @@ variable "owner_email" {
   }
 }
 
+# Shared across root/aws, root/azure, root/gcp so all three can read the
+# same env/<environment>.tfvars file - this root only ever reads the `gcp`
+# slice, but the type has to accept aws/azure too for that file to validate.
 variable "cloud_providers" {
   description = "Cloud provider configurations. Include only the providers you want to deploy."
-  type = object({
-    aws = optional(object({
-      region       = optional(string, "us-east-1")
-      access_key   = optional(string, "")
-      secret_key   = optional(string, "")
-      access_token = optional(string, "")
-      vpc_cidr     = optional(string, "10.0.0.0/16")
-    }))
-    azure = optional(object({
-      resource_group_name = optional(string, "")
-      location            = optional(string, "eastus")
-      vnet_cidr           = optional(string, "10.0.0.0/16")
-    }))
-    gcp = optional(object({
-      project_id   = optional(string)
-      region       = optional(string, "us-central1")
-      network_cidr = optional(string, "10.0.0.0/16")
-    }))
-  })
+  type        = map(any)
 
   validation {
-    condition     = var.cloud_providers.aws != null || var.cloud_providers.azure != null || var.cloud_providers.gcp != null
-    error_message = "providers must include at least one of aws, azure, or gcp"
+    condition     = var.cloud_providers.gcp != null
+    error_message = "root/gcp requires cloud_providers.gcp to be set"
   }
 }
 
@@ -63,30 +48,14 @@ variable "instances" {
   description = "Instance configurations. Include only the operating systems you want to deploy."
   type = object({
     linux = optional(object({
-      count = number
-      instance_type = object({
-        aws   = string
-        azure = string
-        gcp   = string
-      })
-      cidr = object({
-        aws   = string
-        azure = string
-        gcp   = string
-      })
+      count         = number
+      instance_type = map(string)
+      cidr          = map(string)
     }))
     windows = optional(object({
-      count = number
-      instance_type = object({
-        aws   = string
-        azure = string
-        gcp   = string
-      })
-      cidr = object({
-        aws   = string
-        azure = string
-        gcp   = string
-      })
+      count         = number
+      instance_type = map(string)
+      cidr          = map(string)
     }))
   })
   default = {}

@@ -50,7 +50,7 @@ resource "aws_vpc_security_group_egress_rule" "all" {
 
 resource "aws_key_pair" "main" {
   key_name   = "${var.name_prefix}_key"
-  public_key = file(var.ssh_public_key_path)
+  public_key = file(pathexpand(var.ssh_public_key_path))
 
   tags = merge(
     var.tags,

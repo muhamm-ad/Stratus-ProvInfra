@@ -60,8 +60,7 @@ security = {
   }
   windows = {
     username = "azureuser"
-    # Set windows_admin_password via env var: export TF_VAR_windows_admin_password='MyP@ssw0rd123'
-
+    password = "changeme" # set a strong password before applying; keep the populated *.tfvars file untracked
   }
 }
 

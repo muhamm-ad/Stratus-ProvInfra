@@ -5,7 +5,7 @@
 ### 1. **Modularity**
 
 - **Provider modules** (`modules/aws/*`, `modules/azure/*`, `modules/gcp/*`): Each provider is fully isolated. No cross-provider imports.
-- **Root orchestration** (`root/`): Single point of composition; coordinates provider modules and applies unified variables.
+- **Per-cloud root configs** (`root/aws/`, `root/azure/`, `root/gcp/`): Each is a fully independent Terraform root — its own provider block, variables, state, and workspaces. There is no combined root; a run only ever touches one cloud, so an AWS-only deployment never configures (or authenticates to) `azurerm`/`google` at all. This is a hard Terraform constraint, not a style choice: providers are configured for every declared `provider` block regardless of resource usage, and a module called with `count`/`for_each` cannot itself contain a `provider` block — so "one cloud per root" is the only way to make a provider truly optional.
 
 ### 2. **Maintainability**
 
@@ -16,21 +16,24 @@
 
 ### 3. **DRY (Don't Repeat Yourself)**
 
-- **Shared tagging**: All resources inherit `local.common_tags` from `root/main.tf`.
+- **Shared tagging**: All resources inherit `local.common_tags`, computed identically in each `root/<cloud>/main.tf`.
 - **Naming conventions**: Standardized format `{env}_{project}_{component}_{index}` enforced across modules.
-- **Conditional composition**: Provider and OS enablement derived from structured input variables.
+- **Conditional composition**: OS enablement (`linux`/`windows`) derived from structured input variables within a root; cloud enablement is a directory choice (`root/<cloud>`), not a variable.
 
 ### 4. **Environment Layering**
 
 - **Two environments**: `dev` (testing), `prod` (hardened).
-- **Per-environment vars**: `env/dev.tfvars`, `env/prod.tfvars` override defaults.
-- **Selective deployment**: Omit provider or OS blocks in tfvars to deploy only what you need.
+- **Per-environment vars**: `env/dev.tfvars`, `env/prod.tfvars` override defaults, shared across all three per-cloud roots.
+- **Cloud selection**: which cloud gets deployed is chosen by which `root/<cloud>` you run, not by which `cloud_providers` keys are populated in tfvars (see "Per-Cloud Root Configs" below).
+- **Selective OS deployment**: Omit the `linux` or `windows` block in tfvars to deploy only the operating systems you want, within whichever cloud you're running.
 
 ## Configuration Variables
 
 ### `cloud_providers`
 
-Structured object with optional `aws`, `azure`, and `gcp` blocks. At least one must be present.
+Structured object with optional `aws`, `azure`, and `gcp` blocks. The same shared
+`env/<environment>.tfvars` file is passed to all three per-cloud roots, so all three
+sub-blocks can be populated in one place even though a given root only reads one of them.
 
 ```hcl
 cloud_providers = {
@@ -54,13 +57,12 @@ cloud_providers = {
 }
 ```
 
-Root locals derive enable flags:
-
-```hcl
-enable_aws   = var.cloud_providers.aws != null
-enable_azure = var.cloud_providers.azure != null
-enable_gcp   = var.cloud_providers.gcp != null
-```
+Each root only cares about its own slice: `root/aws/main.tf` reads
+`var.cloud_providers.aws` (aliased to `local.aws_config`), `root/azure` reads `.azure`,
+`root/gcp` reads `.gcp`. Each root's `variables.tf` validates that its own slice is
+non-null (e.g. `root/aws` requires `cloud_providers.aws != null`) — if you run
+`./scripts/deploy.sh aws` without an `aws` block in your tfvars, `terraform validate`
+fails immediately with a clear message instead of silently doing nothing.
 
 ### `instances`
 
@@ -100,29 +102,44 @@ When an OS is omitted:
 
 ## Module Dependency Graph
 
+Each cloud is its own root, so there's no cross-cloud `count`/conditional wiring - a
+given root always instantiates its modules exactly once:
+
 ```text
-root/
-├── [if cloud_providers.aws] → modules/aws/vpc/
-│                              modules/aws/security/
-│                              modules/aws/compute/  (per enabled OS)
-│
-├── [if cloud_providers.azure] → modules/azure/network/  (subnets per enabled OS)
-│                                modules/azure/nsg/
-│                                modules/azure/compute/  (per enabled OS)
-│
-└── [if cloud_providers.gcp] → modules/gcp/network/  (subnets per enabled OS)
-                               modules/gcp/firewall/
-                               modules/gcp/compute/  (per enabled OS)
+root/aws/    → modules/aws/vpc/
+               modules/aws/security/
+               modules/aws/compute/    (per enabled OS)
+
+root/azure/  → modules/azure/network/  (subnets per enabled OS)
+               modules/azure/nsg/
+               modules/azure/compute/  (per enabled OS)
+
+root/gcp/    → modules/gcp/network/    (subnets per enabled OS)
+               modules/gcp/firewall/
+               modules/gcp/compute/    (per enabled OS)
 ```
+
+Only the OS blocks (`linux`/`windows`) are still conditional within a root, via
+`local.enable_linux` / `local.enable_windows` derived from `var.instances`.
 
 ## Root Module Orchestration
 
-**`root/main.tf`**: Instantiates provider modules with conditional `count`:
+**Why three roots instead of one**: Terraform configures every declared `provider`
+block during `plan`/`apply` regardless of whether any resource in the plan actually
+uses it, and a module called with `count`/`for_each` cannot itself contain a `provider`
+block. That means a single root with `aws`/`azurerm`/`google` all declared can never
+make a provider truly optional - `azurerm` in particular always makes a real call to
+Azure AD (or shells out to `az`) during `Configure`, with no "skip auth" escape hatch
+(unlike `aws`'s `skip_credentials_validation` or a null `google` project). Splitting
+into `root/aws`, `root/azure`, `root/gcp` sidesteps this entirely: an AWS-only run
+never even has `azurerm`/`google` in `required_providers`, so there's nothing to
+authenticate to.
+
+**`root/<cloud>/main.tf`**: Instantiates that cloud's modules directly, no `count`:
 
 ```hcl
-module "aws_vpc" {
-  count  = local.enable_aws ? 1 : 0
-  source = "../modules/aws/vpc"
+module "vpc" {
+  source = "../../modules/aws/vpc"
 
   subnet_configs = merge(
     local.enable_linux ? { linux = { cidr = ..., az = ... } } : {},
@@ -130,8 +147,8 @@ module "aws_vpc" {
   )
 }
 
-module "aws_compute" {
-  count = local.enable_aws ? 1 : 0
+module "compute" {
+  source = "../../modules/aws/compute"
 
   linux_instances   = local.enable_linux ? { ... } : null
   windows_instances = local.enable_windows ? { ... } : null
@@ -140,18 +157,25 @@ module "aws_compute" {
 
 **Variable Flow**:
 
-1. User provides `env/dev.tfvars`
-2. `root/variables.tf` validates types and constraints
-3. `root/main.tf` locals compute enable flags, naming prefix, and tags
-4. `root/main.tf` passes conditional inputs to module instances
-5. Each module creates only the resources for enabled workloads
+1. User provides `env/dev.tfvars` (shared across all three roots)
+2. `root/<cloud>/variables.tf` validates types/constraints and requires its own
+   `cloud_providers.<cloud>` slice to be non-null
+3. `root/<cloud>/main.tf` locals alias that slice (e.g. `local.aws_config`), compute
+   OS enable flags, naming prefix, and tags
+4. `root/<cloud>/main.tf` passes inputs to its modules
+5. Each module creates only the resources for enabled OS workloads
 
 **State Architecture**:
 
-- **One workspace per environment** (`dev`, `prod`) with isolated local state
-- State files stored under `root/.terraform/terraform.tfstate.d/<workspace>/`
+- **One root directory per cloud** (`root/aws/`, `root/azure/`, `root/gcp/`), each with
+  its own `.terraform/` and provider lock file - fully isolated from the others
+- **One workspace per environment** (`dev`, `prod`) within each cloud's root, with
+  isolated local state
+- State files stored under `root/<cloud>/terraform.tfstate.d/<workspace>/`
 - No remote backend or distributed locking (suitable for local / solo use)
 - Sensitive data (passwords, keys) marked as `sensitive = true`
+- Deploying to more than one cloud means running `deploy.sh`/`destroy.sh` once per
+  cloud - there's no single combined multi-cloud apply anymore
 
 ## Network Module Design
 
@@ -219,20 +243,24 @@ Every resource inherits:
 
 ## State Management
 
-**Workspace-based local state** (per environment):
+**Workspace-based local state** (per cloud, per environment):
 
 ```bash
-./scripts/init.sh dev    # terraform init + workspace select/new dev
-./scripts/init.sh prod   # terraform init + workspace select/new prod
+./scripts/init.sh aws dev     # terraform init (root/aws) + workspace select/new dev
+./scripts/init.sh azure prod  # terraform init (root/azure) + workspace select/new prod
 ```
 
-| Workspace | Var file | State location |
-|-----------|----------|----------------|
-| `dev` | `env/dev.tfvars` | `root/.terraform/terraform.tfstate.d/dev/` |
-| `prod` | `env/prod.tfvars` | `root/.terraform/terraform.tfstate.d/prod/` |
+| Cloud | Workspace | Var file | State location |
+|-------|-----------|----------|----------------|
+| `aws` | `dev` | `env/dev.tfvars` | `root/aws/terraform.tfstate.d/dev/` |
+| `aws` | `prod` | `env/prod.tfvars` | `root/aws/terraform.tfstate.d/prod/` |
+| `azure` | `dev` | `env/dev.tfvars` | `root/azure/terraform.tfstate.d/dev/` |
+| `gcp` | `dev` | `env/dev.tfvars` | `root/gcp/terraform.tfstate.d/dev/` |
 
-`deploy.sh` and `destroy.sh` call `init.sh` to ensure the correct workspace is
-active before plan, apply, or destroy.
+The var file is the same across clouds; the state location differs because each
+cloud has its own root directory. `deploy.sh <cloud> <env>` and
+`destroy.sh <cloud> <env>` expect `init.sh <cloud> <env>` to have already selected
+the right workspace.
 
 **Sensitive Data in State**:
 
@@ -246,7 +274,8 @@ active before plan, apply, or destroy.
 
 - Increase `instances.linux.count` or `instances.windows.count` in tfvars
 - Uses `count` in compute modules: `count.index` for unique naming, IP assignment
-- Example: `instances.linux.count = 5` with three providers enabled → 15 Linux VMs total
+- Example: `instances.linux.count = 5`, deployed via `deploy.sh aws`, `deploy.sh azure`,
+  and `deploy.sh gcp` → 5 Linux VMs per cloud (15 total across three separate applies)
 
 ### Provider-Specific Limits
 
@@ -256,42 +285,43 @@ active before plan, apply, or destroy.
 
 ### Cost Scaling
 
-- `dev` sizing: ~$5-10/month (free tier eligible)
-- `prod` sizing: ~$150-250/month
-- Omit providers or OS blocks to reduce cost proportionally
+- `dev` sizing: ~$5-10/month per cloud (free tier eligible)
+- `prod` sizing: ~$150-250/month per cloud
+- Only run `deploy.sh` for the clouds you actually want; omit OS blocks to reduce cost further
 
 ## Inventory
 
-**Inventory Export**:
+**Inventory Export**: each cloud's `inventory` output is single-cloud shaped (no more
+combined `aws`/`azure`/`gcp` wrapper, since each root only ever knows about one cloud).
+`deploy.sh <cloud>` exports it automatically after apply:
 
 ```bash
-terraform output -json inventory > inventory.json
+terraform output -json inventory > stratus-inventory-<cloud>.json
 ```
 
-**Inventory Format**:
+**Inventory Format** (per cloud):
 
 ```json
 {
-  "aws": {
-    "total_vms": 2,
-    "vms": [
-      {
-        "id": "i-0123456789abc",
-        "name": "dev_stratus_linux_1",
-        "provider": "aws",
-        "os": "linux",
-        "ip": "203.0.113.1",
-        "region": "us-east-1",
-        "state": "running"
-      }
-    ]
-  },
-  "azure": null,
-  "gcp": null
+  "total_vms": 2,
+  "vms": [
+    {
+      "id": "i-0123456789abc",
+      "name": "dev_stratus_linux_1",
+      "provider": "aws",
+      "os": "linux",
+      "ip": "203.0.113.1",
+      "region": "us-east-1",
+      "state": "running"
+    }
+  ]
 }
 ```
 
-Disabled providers return `null`. VM counts in `deployment_summary` use `try()` to report `0` for omitted OS blocks.
+If you need a single combined multi-cloud inventory file (e.g. for the Stratus
+Gateway integration), merge `stratus-inventory-aws.json`, `stratus-inventory-azure.json`,
+and `stratus-inventory-gcp.json` yourself (e.g. with `jq -n`) - this isn't done
+automatically since a given apply only ever has one cloud's data available.
 
 ## Testing & Validation
 
@@ -352,18 +382,20 @@ Disabled providers return `null`. VM counts in `deployment_summary` use `try()` 
 
 **Common Issues**:
 
-1. **"Error: invalid type for ..."** → Type mismatch in tfvars. Verify object keys match the schema in `root/variables.tf`.
+1. **"Error: invalid type for ..."** → Type mismatch in tfvars. Verify object keys match the schema in `root/<cloud>/variables.tf`.
 2. **"Error: resource already exists"** → State mismatch. Use `terraform import` or `terraform destroy` + recreate.
 3. **"Error: subnet CIDR conflicts"** → CIDR overlaps. Check `vpc_cidr`, `vnet_cidr`, `network_cidr` in `cloud_providers`.
 4. **Windows admin password rejected** → Password doesn't meet Azure/GCP complexity (12+ chars, mixed case, numbers, symbols).
 5. **SSH key not found** → Run `./scripts/generate-ssh-key.sh` and verify `security.ssh.public_key_path`.
-6. **Unexpected resources created** → Check that omitted providers/OS blocks are removed from tfvars, not set to empty objects.
+6. **Unexpected resources created** → Check that omitted OS blocks are removed from tfvars, not set to empty objects.
+7. **`cloud_providers.<cloud> to be set` validation error** → You ran `deploy.sh <cloud>` but that cloud's block is missing from `env/<environment>.tfvars`; add it or run a different cloud.
+8. **`azurerm`/`google` auth errors while running `root/aws`** → Shouldn't happen: `root/aws` only declares the `aws` provider. If you see this, you're likely running commands from the old combined `root/` path instead of `root/aws` - `cd` into the right per-cloud directory.
 
-**Debug Steps**:
+**Debug Steps** (run from the relevant `root/<cloud>` directory):
 
 ```bash
 terraform refresh
 terraform state list
-terraform state show 'module.aws_compute[0].aws_instance.linux[0]'
+terraform state show 'module.compute.aws_instance.linux[0]'
 terraform console
 ```
