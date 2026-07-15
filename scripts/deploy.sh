@@ -23,6 +23,7 @@ Examples:
   $0 prod --plan-only
 
 Before first run:
+  ./scripts/init.sh dev
   cp env/dev.tfvars.exemple env/dev.tfvars
   ./scripts/generate-ssh-key.sh
 EOF

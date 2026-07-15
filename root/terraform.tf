@@ -18,13 +18,11 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.5"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.9.0"
+    }
   }
-
-  # Backend configured per-environment via backend config files or CLI flags
-  # Example: terraform init -backend-config=backend-dev.hcl
-  # backend "s3" {} — for AWS
-  # backend "azurerm" {} — for Azure
-  # backend "gcs" {} — for GCP
 }
 
 # AWS Provider (uses safe defaults when aws block is omitted)

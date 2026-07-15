@@ -40,7 +40,7 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 - **Environment-aware**: Separate configs for dev and prod
 - **RBAC-ready**: Tags enable Stratus access control
 - **Cost-tracked**: Unified tagging for billing and chargeback
-- **State management**: Remote backends with locking per environment
+- **State management**: Local state per environment via Terraform workspaces (dev, prod)
 
 ---
 
@@ -109,17 +109,18 @@ cd stratus-provinfra
 cp env/dev.tfvars.exemple env/dev.tfvars
 # Edit cloud_providers and instances to match your target deployment
 
-# 4. Initialize (from root module directory)
-cd root
-terraform init -backend-config=backend-dev.hcl
+# 4. Initialize workspace and deploy
+./scripts/init.sh dev
+./scripts/deploy.sh dev
 
-# 5. Plan and apply
-../scripts/deploy.sh dev
-# Or manually:
+# Or manually from root/:
+cd root
+terraform init
+terraform workspace select dev   # or: terraform workspace new dev
 terraform plan -var-file=../env/dev.tfvars -out=tfplan
 terraform apply tfplan
 
-# 6. Export inventory
+# 5. Export inventory
 terraform output -json inventory > ../stratus-inventory.json
 ```
 
@@ -237,14 +238,14 @@ terraform apply -var-file=../env/dev.tfvars \
 
 - SSH keys managed locally (not in repo)
 - Windows passwords via environment variables (not in tfvars)
-- State files encrypted at rest (S3, Azure Blob, GCS)
+- State files stored locally per workspace (gitignored; not committed)
 - All VMs tagged for RBAC filtering
 - Security groups restrict SSH (22) and RDP (3389) to authorized sources
 
 ### Sensitive Data
 
 All sensitive outputs (passwords, keys) are marked `sensitive = true` in Terraform.
-State files are encrypted by default in remote backends.
+State files live under `root/.terraform/` and are excluded from version control.
 
 ---
 

@@ -148,9 +148,9 @@ module "aws_compute" {
 
 **State Architecture**:
 
-- **Single state file per environment** (dev, prod)
-- Remote backends: S3 (AWS), Blob Storage (Azure), GCS (GCP)
-- State locking prevents concurrent applies
+- **One workspace per environment** (`dev`, `prod`) with isolated local state
+- State files stored under `root/.terraform/terraform.tfstate.d/<workspace>/`
+- No remote backend or distributed locking (suitable for local / solo use)
 - Sensitive data (passwords, keys) marked as `sensitive = true`
 
 ## Network Module Design
@@ -219,28 +219,26 @@ Every resource inherits:
 
 ## State Management
 
-**Backend Configuration** (per environment):
+**Workspace-based local state** (per environment):
 
-```hcl
-# backend-dev.hcl
-bucket         = "stratus-provinfra-state-dev"
-key            = "terraform.tfstate"
-region         = "us-east-1"
-dynamodb_table = "terraform-lock"
-encrypt        = true
+```bash
+./scripts/init.sh dev    # terraform init + workspace select/new dev
+./scripts/init.sh prod   # terraform init + workspace select/new prod
 ```
 
-**State Locks**: Prevent concurrent applies. Locks held in:
+| Workspace | Var file | State location |
+|-----------|----------|----------------|
+| `dev` | `env/dev.tfvars` | `root/.terraform/terraform.tfstate.d/dev/` |
+| `prod` | `env/prod.tfvars` | `root/.terraform/terraform.tfstate.d/prod/` |
 
-- AWS: DynamoDB table `terraform-lock`
-- Azure: Blob Storage lease
-- GCP: Cloud Storage object lock
+`deploy.sh` and `destroy.sh` call `init.sh` to ensure the correct workspace is
+active before plan, apply, or destroy.
 
 **Sensitive Data in State**:
 
 - Windows admin password (marked `sensitive = true`)
 - SSH private key (never stored; user-managed)
-- State file stored encrypted at rest
+- State files are gitignored and must not be committed
 
 ## Scaling Considerations
 
@@ -335,7 +333,7 @@ Disabled providers return `null`. VM counts in `deployment_summary` use `try()` 
    - Security groups restrict ports 22, 3389
 
 3. **Encryption**:
-   - State files encrypted at rest (S3, Blob, GCS)
+   - State files stored locally (gitignored; protect the machine that holds them)
    - SSH in transit (TLS/OpenSSH)
    - Windows passwords marked `sensitive` (Terraform logs redacted)
 

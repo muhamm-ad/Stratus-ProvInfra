@@ -25,7 +25,6 @@ override.tf.json
 *.key
 aws_credentials
 azure_credentials
-backend-*.hcl.local
 
 # Outputs
 stratus-inventory.json

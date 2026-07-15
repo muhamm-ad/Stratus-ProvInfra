@@ -85,15 +85,22 @@ When a block is present, all nested fields (`count`, `instance_type`, `cidr`) ar
 git clone https://github.com/muhamm-ad/stratus-provinfra.git
 cd stratus-provinfra
 
-# Create backend state buckets (one-time)
-./scripts/init-backend.sh
-
 # Copy and edit environment config
 cp env/dev.tfvars.exemple env/dev.tfvars
 
-# Initialize Terraform (from root module)
-cd root
-terraform init -backend-config=backend-dev.hcl
+# Initialize Terraform and select the dev workspace
+./scripts/init.sh dev
+```
+
+State is stored **locally** on your machine. Each environment (`dev`, `prod`) uses a
+separate Terraform workspace so their state files never overlap.
+
+```bash
+# List workspaces
+cd root && terraform workspace list
+
+# Switch environment before manual commands
+terraform workspace select prod
 ```
 
 ### 2. Configure Credentials
@@ -283,11 +290,18 @@ gcloud projects list
 
 If Terraform reports missing attributes, ensure every field inside a present `cloud_providers` or `instances` block is set. Optional blocks must be omitted entirely — do not set them to `null` in tfvars.
 
-### State Lock Issues
+### State / workspace issues
+
+Always match the workspace to the tfvars file you are using:
 
 ```bash
-terraform force-unlock LOCK_ID  # Use with caution!
+./scripts/init.sh dev          # select or create dev workspace
+terraform plan -var-file=../env/dev.tfvars
 ```
+
+Using `dev.tfvars` while on the `prod` workspace (or vice versa) can corrupt or
+replace the wrong infrastructure. The deploy and destroy scripts handle workspace
+selection automatically.
 
 ### SSH Access to Linux VMs (AWS)
 
