@@ -7,20 +7,9 @@ terraform {
   }
 }
 
-data "aws_ami" "linux" {
-  count       = var.linux_instances != null ? 1 : 0
-  most_recent = true
-  owners      = ["099720109477"]
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+data "aws_ssm_parameter" "linux" {
+  count = var.linux_instances != null ? 1 : 0
+  name  = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 }
 
 data "aws_ami" "windows" {
@@ -37,7 +26,7 @@ data "aws_ami" "windows" {
 resource "aws_instance" "linux" {
   count = try(var.linux_instances.count, 0)
 
-  ami                    = data.aws_ami.linux[0].id
+  ami                    = data.aws_ssm_parameter.linux[0].value
   instance_type          = try(var.linux_instances.instance_type, null)
   subnet_id              = try(var.linux_instances.subnet_id, null)
   vpc_security_group_ids = try([var.linux_instances.security_group_id], [])

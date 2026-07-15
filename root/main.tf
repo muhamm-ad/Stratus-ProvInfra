@@ -22,12 +22,20 @@ locals {
       Environment = var.environment
       Project     = var.project_name
       ManagedBy   = "terraform"
-      CreatedAt   = time_static.creation_timestamp.rfc3339
-      ModifiedAt  = time_static.modification_timestamp.rfc3339
       Owner       = var.owner_email
     },
     var.additional_tags
   )
+}
+
+resource "time_static" "creation_timestamp" {}
+
+# Timestamp for modification time - this will update on each apply
+resource "time_static" "modification_timestamp" {
+  triggers = {
+    # This forces the resource to be recreated on each apply
+    always_recreate = timestamp()
+  }
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -57,7 +65,10 @@ module "aws_vpc" {
     } : {}
   )
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "aws_security" {
@@ -69,7 +80,10 @@ module "aws_security" {
 
   ssh_public_key_path = var.security.ssh.public_key_path
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "aws_compute" {
@@ -96,7 +110,10 @@ module "aws_compute" {
     user_data         = "#!/bin/powershell\n\n# Install IIS\nInstall-WindowsFeature -Name Web-Server -IncludeManagementTools"
   } : null
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 # Data source for AWS availability zones
@@ -137,7 +154,10 @@ module "azure_network" {
     } : {}
   )
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "azure_nsg" {
@@ -148,7 +168,10 @@ module "azure_nsg" {
   resource_group_name = module.azure_network[0].resource_group_name
   location            = local.azure_config.location
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "azure_compute" {
@@ -177,7 +200,10 @@ module "azure_compute" {
     admin_password            = var.security.windows.password # TODO: Add password via env var
   } : null
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -206,7 +232,10 @@ module "gcp_network" {
     } : {}
   )
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "gcp_firewall" {
@@ -217,7 +246,10 @@ module "gcp_firewall" {
   project_id   = local.gcp_config.project_id
   network_name = module.gcp_network[0].network_name
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }
 
 module "gcp_compute" {
@@ -242,5 +274,8 @@ module "gcp_compute" {
     admin_password = var.security.windows.password # TODO: Add password via env var
   } : null
 
-  tags = local.common_tags
+  tags = merge(local.common_tags, {
+    CreatedAt  = time_static.creation_timestamp.rfc3339
+    ModifiedAt = time_static.modification_timestamp.rfc3339
+  })
 }

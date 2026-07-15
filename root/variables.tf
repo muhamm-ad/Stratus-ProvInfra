@@ -35,21 +35,21 @@ variable "cloud_providers" {
   description = "Cloud provider configurations. Include only the providers you want to deploy."
   type = object({
     aws = optional(object({
-      region       = string
-      access_key   = string
-      secret_key   = string
-      access_token = string
-      vpc_cidr     = string
+      region       = optional(string, "us-east-1")
+      access_key   = optional(string, "")
+      secret_key   = optional(string, "")
+      access_token = optional(string, "")
+      vpc_cidr     = optional(string, "10.0.0.0/16")
     }))
     azure = optional(object({
-      resource_group_name = string
-      location            = string
-      vnet_cidr           = string
+      resource_group_name = optional(string, "")
+      location            = optional(string, "eastus")
+      vnet_cidr           = optional(string, "10.0.0.0/16")
     }))
     gcp = optional(object({
-      project_id   = string
-      region       = string
-      network_cidr = string
+      project_id   = optional(string)
+      region       = optional(string, "us-central1")
+      network_cidr = optional(string, "10.0.0.0/16")
     }))
   })
 
