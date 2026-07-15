@@ -2,7 +2,6 @@
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
 tfplan
 tfplan.json
 crash.log
@@ -27,7 +26,7 @@ aws_credentials
 azure_credentials
 
 # Outputs
-stratus-inventory.json
+*-inventory*
 inventory.json
 
 # OS
