@@ -56,7 +56,7 @@ instances = {
 
 security = {
   ssh = {
-    public_key_path = "../keys/stratus-provinfra.pub"
+    public_key_path = "~/.ssh/stratus-provinfra.pub"
   }
   windows = {
     username = "azureuser"

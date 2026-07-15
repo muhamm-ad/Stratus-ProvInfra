@@ -4,7 +4,7 @@
 
 **Infrastructure provisioning companion for [Stratus Gateway](https://github.com/muhamm-ad/stratus)**
 
-Provision X Linux + Y Windows VMs (4 per provider) across AWS, Azure, and GCP with production-grade Terraform.
+Provision Linux and/or Windows VMs across AWS, Azure, and GCP with production-grade Terraform.
 Features modular, reusable infrastructure code with DRY principles, environment layering, and
 unified inventory integration.
 
@@ -26,8 +26,8 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 
 ### What's Included
 
-- **VMs**: X Linux + Y Windows per cloud provider (AWS, Azure, GCP) Setup by the count variables.
-- **Modular Terraform**: Shared modules for naming, tagging, and security
+- **VMs**: Optional Linux and/or Windows workloads per enabled cloud provider
+- **Modular Terraform**: Provider-specific modules for networking, security, and compute
 - **DRY principles**: Single-source-of-truth for naming conventions and tags
 - **Environment layering**: dev/prod configurations with cost-aware sizing
 - **Production-ready**: Validation, encryption, monitoring, and tagging built-in
@@ -35,11 +35,56 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 ### Key Features
 
 - **Multi-cloud**: AWS EC2, Azure VMs, GCP Compute Instances
+- **Selective deployment**: Enable only the providers and operating systems you need
 - **Modular design**: Reusable modules across all providers
-- **Environment-aware**: Separate configs for dev, prod
+- **Environment-aware**: Separate configs for dev and prod
 - **RBAC-ready**: Tags enable Stratus access control
 - **Cost-tracked**: Unified tagging for billing and chargeback
 - **State management**: Remote backends with locking per environment
+
+---
+
+## Configuration Model
+
+Deployment scope is controlled in `env/*.tfvars` via two structured variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `cloud_providers` | Which clouds to deploy (`aws`, `azure`, `gcp`). At least one block is required. |
+| `instances` | Which operating systems to deploy (`linux`, `windows`). Defaults to `{}` (no VMs). |
+
+Omit a provider or OS block entirely to skip provisioning it. When a block is present, all nested fields are required.
+
+```hcl
+# AWS only, Linux only
+cloud_providers = {
+  aws = {
+    region       = "us-east-1"
+    access_key   = ""
+    secret_key   = ""
+    access_token = ""
+    vpc_cidr     = "10.0.0.0/16"
+  }
+}
+
+instances = {
+  linux = {
+    count = 2
+    instance_type = {
+      aws   = "t3.micro"
+      azure = "Standard_B1s"
+      gcp   = "e2-micro"
+    }
+    cidr = {
+      aws   = "10.0.1.0/24"
+      azure = "10.1.1.0/24"
+      gcp   = "10.2.1.0/24"
+    }
+  }
+}
+```
+
+See `env/dev.tfvars.exemple` for a full multi-cloud example.
 
 ---
 
@@ -48,7 +93,7 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 ### Prerequisites
 
 - **Terraform** 1.5+ or **OpenTofu** 1.5+
-- **Credentials**: AWS, Azure, and GCP authentication configured
+- **Credentials**: AWS, Azure, and/or GCP authentication configured for the providers you enable
 
 ### 5-Minute Setup
 
@@ -57,17 +102,21 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 git clone https://github.com/muhamm-ad/stratus-provinfra.git
 cd stratus-provinfra
 
-# 2. Generate SSH key (for AWS Linux VMs)
+# 2. Generate SSH key (for Linux VMs)
 ./scripts/generate-ssh-key.sh
 
-# 3. Initialize (from root module directory)
+# 3. Copy and edit environment config
+cp env/dev.tfvars.exemple env/dev.tfvars
+# Edit cloud_providers and instances to match your target deployment
+
+# 4. Initialize (from root module directory)
 cd root
 terraform init -backend-config=backend-dev.hcl
 
-# 4. Plan
+# 5. Plan and apply
+../scripts/deploy.sh dev
+# Or manually:
 terraform plan -var-file=../env/dev.tfvars -out=tfplan
-
-# 5. Apply
 terraform apply tfplan
 
 # 6. Export inventory
@@ -80,12 +129,12 @@ For detailed setup, see [docs/QUICK_START.md](docs/QUICK_START.md).
 
 ## VM Inventory
 
-All VMs are exported in json format:
+All VMs are exported in JSON format:
 
 ```json
 {
   "aws": {
-    "total_vms": 4,
+    "total_vms": 2,
     "vms": [
       {
         "id": "i-0123456789abc",
@@ -98,10 +147,12 @@ All VMs are exported in json format:
       }
     ]
   },
-  "azure": { },
-  "gcp": { }
+  "azure": null,
+  "gcp": null
 }
 ```
+
+Disabled providers return `null` in the inventory output.
 
 ---
 
@@ -112,33 +163,70 @@ All VMs are exported in json format:
 | **dev** | t3.micro, Standard_B1s, e2-micro | ~$5-10 |
 | **prod** | t3.large, Standard_D2s_v3, n1-standard-2 | ~$150-250 |
 
+Costs scale with the number of enabled providers and OS workloads.
+
 ---
 
 ## Usage Examples
 
 ### Deploy Only AWS
 
-```bash
-cd root
-terraform plan -var-file=../env/dev.tfvars -var="enable_azure=false" -var="enable_gcp=false"
+Remove `azure` and `gcp` from `cloud_providers` in your tfvars:
+
+```hcl
+cloud_providers = {
+  aws = {
+    region       = "us-east-1"
+    access_key   = ""
+    secret_key   = ""
+    access_token = ""
+    vpc_cidr     = "10.0.0.0/16"
+  }
+}
 ```
 
 ### Deploy Only Linux VMs
 
-```bash
-terraform plan -var-file=../env/dev.tfvars -var="windows_vm_count=0"
+Omit the `windows` block from `instances`:
+
+```hcl
+instances = {
+  linux = {
+    count = 1
+    instance_type = { aws = "t3.micro", azure = "Standard_B1s", gcp = "e2-micro" }
+    cidr          = { aws = "10.0.1.0/24", azure = "10.1.1.0/24", gcp = "10.2.1.0/24" }
+  }
+}
 ```
 
-### Scale to 5 Linux VMs per Provider
+### Scale Linux VMs
 
-```bash
-terraform plan -var-file=../env/dev.tfvars -var="linux_vm_count=5"
+Increase `instances.linux.count` in your tfvars:
+
+```hcl
+instances = {
+  linux = {
+    count = 5
+    # ...
+  }
+}
 ```
+
+With three providers enabled, `count = 5` creates 5 Linux VMs per provider (15 total).
+
+### Deploy Networking Only (No VMs)
+
+```hcl
+instances = {}
+```
+
+Provider networking (VPC, VNet, firewall rules) is still created for enabled `cloud_providers`.
 
 ### Add Custom Tags
 
 ```bash
-terraform apply -var-file=../env/dev.tfvars -var='additional_tags={"Team":"Platform","CostCenter":"100"}'
+terraform apply -var-file=../env/dev.tfvars \
+  -var='additional_tags={"Team":"Platform","CostCenter":"100"}'
 ```
 
 ---

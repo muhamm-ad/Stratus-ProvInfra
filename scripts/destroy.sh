@@ -8,6 +8,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/../root"
 TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
 
+usage() {
+  cat <<EOF
+Usage: $0 [dev|prod] --confirm
+
+Destroy all resources managed for the given environment.
+
+Examples:
+  $0 dev --confirm
+  $0 prod --confirm
+EOF
+}
+
+if [[ "${ENV}" == "-h" || "${ENV}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
 if [ ! -f "${TFVARS}" ]; then
   echo "Environment file not found: ${TFVARS}"
   exit 1

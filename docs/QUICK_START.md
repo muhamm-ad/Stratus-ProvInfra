@@ -4,32 +4,77 @@ A multi-cloud infrastructure-as-code project to provision test VMs across AWS, A
 
 ## Architecture Overview
 
-- **VMs**: X Linux + Y Windows per cloud provider (AWS, Azure, GCP) Setup by the count variables.
+- **VMs**: Optional Linux and/or Windows workloads per enabled cloud provider
 - **Provider-specific modules**: `modules/aws/*`, `modules/azure/*`, `modules/gcp/*` — isolated per provider
 - **Root module**: `root/` — orchestrates all providers and module composition
 - **Environment layering**: `env/dev.tfvars`, `env/prod.tfvars`
+
+## Configuration Model
+
+Two variables control what gets deployed:
+
+### `cloud_providers` — which clouds
+
+Include only the provider blocks you need. At least one is required.
+
+```hcl
+cloud_providers = {
+  aws = {
+    region       = "us-east-1"
+    access_key   = ""
+    secret_key   = ""
+    access_token = ""
+    vpc_cidr     = "10.0.0.0/16"
+  }
+  # Omit azure and gcp to deploy AWS only
+}
+```
+
+### `instances` — which operating systems
+
+Include only the OS blocks you need. Defaults to `{}` (no VMs).
+
+```hcl
+instances = {
+  linux = {
+    count = 1
+    instance_type = {
+      aws   = "t3.micro"
+      azure = "Standard_B1s"
+      gcp   = "e2-micro"
+    }
+    cidr = {
+      aws   = "10.0.1.0/24"
+      azure = "10.1.1.0/24"
+      gcp   = "10.2.1.0/24"
+    }
+  }
+  # Omit windows to skip Windows VMs and their subnets
+}
+```
+
+When a block is present, all nested fields (`count`, `instance_type`, `cidr`) are required.
 
 ## Prerequisites
 
 1. **OpenTofu** v1.5+ or **Terraform** v1.5+
 
-2. **Cloud CLI Tools (not required)**
+2. **Cloud CLI Tools (optional)**
    - AWS: `aws cli v2` + `aws configure` with credentials
    - Azure: `az cli` + `az login` with credentials
    - GCP: `gcloud cli` + `gcloud auth application-default login`
 
-3. **SSH Key** (for AWS Linux VMs)
+3. **SSH Key** (for Linux VMs)
 
    ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/stratus-provinfra -N ""
-   # Or use the script to generate the key:
    ./scripts/generate-ssh-key.sh
+   # Creates ~/.ssh/stratus-terraform and copies the public key to keys/
    ```
 
 4. **Windows Admin Password** (for Azure/GCP Windows VMs)
 
    ```bash
-   export TF_VAR_windows_admin_password='MySecureP@ssw0rd123'  # Min 12 chars, complex
+   export TF_VAR_security='{"ssh":{"public_key_path":"../keys/stratus-provinfra.pub"},"windows":{"username":"azureuser","password":"MySecureP@ssw0rd123"}}'
    ```
 
 ## Quick Setup
@@ -42,6 +87,9 @@ cd stratus-provinfra
 
 # Create backend state buckets (one-time)
 ./scripts/init-backend.sh
+
+# Copy and edit environment config
+cp env/dev.tfvars.exemple env/dev.tfvars
 
 # Initialize Terraform (from root module)
 cd root
@@ -61,7 +109,6 @@ aws configure
 
 ```bash
 az login
-# Opens browser for authentication
 az account show  # Verify subscription
 ```
 
@@ -70,20 +117,20 @@ az account show  # Verify subscription
 ```bash
 gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
-export TF_VAR_gcp_project_id='your-gcp-project-id'
 ```
+
+Set provider details in `env/dev.tfvars` under `cloud_providers`.
 
 ### 3. Plan and Deploy
 
 ```bash
-# Validate configuration
-terraform fmt -recursive
+# From repository root
+./scripts/deploy.sh dev
+
+# Or manually from root/
+terraform fmt -recursive ..
 terraform validate
-
-# Plan deployment (review changes)
 terraform plan -var-file=../env/dev.tfvars -out=tfplan
-
-# Apply (deploy VMs)
 terraform apply tfplan
 ```
 
@@ -110,33 +157,66 @@ terraform output -json inventory | jq .
 
 ### Deploy Only AWS
 
-```bash
-terraform plan -var-file=../env/dev.tfvars \
-  -var="enable_azure=false" \
-  -var="enable_gcp=false"
+Remove `azure` and `gcp` from `cloud_providers` in `env/dev.tfvars`:
+
+```hcl
+cloud_providers = {
+  aws = {
+    region       = "us-east-1"
+    access_key   = ""
+    secret_key   = ""
+    access_token = ""
+    vpc_cidr     = "10.0.0.0/16"
+  }
+}
 ```
 
-### Deploy Only Linux VMs (no Windows)
+### Deploy Only Linux VMs (No Windows)
 
-```bash
-terraform plan -var-file=../env/dev.tfvars \
-  -var="windows_vm_count=0"
+Remove the `windows` block from `instances`:
+
+```hcl
+instances = {
+  linux = {
+    count = 1
+    instance_type = { aws = "t3.micro", azure = "Standard_B1s", gcp = "e2-micro" }
+    cidr          = { aws = "10.0.1.0/24", azure = "10.1.1.0/24", gcp = "10.2.1.0/24" }
+  }
+}
+```
+
+### Deploy Networking Only (No VMs)
+
+```hcl
+instances = {}
 ```
 
 ### Destroy Everything
 
 ```bash
-terraform destroy -var-file=../env/dev.tfvars
+./scripts/destroy.sh dev --confirm
 ```
 
 ### Update VM Sizing
 
-```bash
-# Edit env/dev.tfvars:
-# linux_instance_type.aws = "t3.small"
+Edit `instances.<os>.instance_type` in `env/dev.tfvars`, then:
 
+```bash
 terraform plan -var-file=../env/dev.tfvars
 terraform apply -var-file=../env/dev.tfvars
+```
+
+### Scale VM Count
+
+Edit `instances.<os>.count` in `env/dev.tfvars`:
+
+```hcl
+instances = {
+  linux = {
+    count = 5
+    # ...
+  }
+}
 ```
 
 ### Add Tags to All Resources
@@ -148,12 +228,12 @@ terraform plan -var-file=../env/dev.tfvars \
 
 ## Outputs and Integration with Stratus
 
-After deployment, the `inventory` output contains all VM details in a format :
+After deployment, the `inventory` output contains all VM details:
 
 ```json
 {
   "aws": {
-    "total_vms": 4,
+    "total_vms": 2,
     "vms": [
       {
         "id": "i-0123456789abc",
@@ -163,16 +243,15 @@ After deployment, the `inventory` output contains all VM details in a format :
         "ip": "203.0.113.1",
         "region": "us-east-1",
         "state": "running"
-      },
-      ...
+      }
     ]
   },
-  "azure": { ... },
-  "gcp": { ... }
+  "azure": null,
+  "gcp": null
 }
 ```
 
-Export into json file:
+Export to a JSON file:
 
 ```bash
 terraform output -json inventory > stratus-inventory.json
@@ -184,7 +263,6 @@ terraform output -json inventory > stratus-inventory.json
 
 ```bash
 aws sts get-caller-identity
-# Should return your AWS account info
 ```
 
 ### Azure Subscription Errors
@@ -198,23 +276,23 @@ az account set --subscription "SUBSCRIPTION_ID"
 
 ```bash
 gcloud projects list
-export TF_VAR_gcp_project_id='correct-project-id'
+# Set project_id in cloud_providers.gcp in your tfvars
 ```
+
+### Type Validation Errors
+
+If Terraform reports missing attributes, ensure every field inside a present `cloud_providers` or `instances` block is set. Optional blocks must be omitted entirely — do not set them to `null` in tfvars.
 
 ### State Lock Issues
 
 ```bash
-# If apply hangs, check for stale locks:
 terraform force-unlock LOCK_ID  # Use with caution!
 ```
 
 ### SSH Access to Linux VMs (AWS)
 
 ```bash
-# Get public IP from terraform output
 PUB_IP=$(terraform output -json aws_instances | jq -r '.linux_instances[0].public_ip')
-
-# SSH with the generated key
 ssh -i ~/.ssh/stratus-terraform ubuntu@$PUB_IP
 ```
 
