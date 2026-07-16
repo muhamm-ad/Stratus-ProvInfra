@@ -1,0 +1,38 @@
+#cloud-config
+# No "- default": only the user below is created.
+# WARNING: check the hash before applying, there is no backup user.
+users:
+  - name: ${username}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: ${password_hash}
+
+# Enables PasswordAuthentication in sshd_config and properly restarts sshd
+# (also manages the file 60-cloudimg-settings.conf on Ubuntu 22.04+)
+ssh_pwauth: true
+
+packages:
+  - fail2ban
+
+write_files:
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime  = 1h
+      findtime = 10m
+      maxretry = 5
+      bantime.increment = true
+
+      [sshd]
+      enabled = true
+      backend = systemd
+
+runcmd:
+  - systemctl enable --now fail2ban
+%{ if extra != "" ~}
+  # Extra user_data from caller
+  - |
+    ${indent(4, extra)}
+%{ endif ~}

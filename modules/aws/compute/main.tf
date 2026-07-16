@@ -32,8 +32,15 @@ resource "aws_instance" "linux" {
   subnet_id              = try(var.linux_instances.subnet_id, null)
   vpc_security_group_ids = try([var.linux_instances.security_group_id], [])
   key_name               = try(var.linux_instances.key_name, null)
-  user_data              = try(var.linux_instances.user_data, null)
+  user_data = templatefile("${path.module}/linux-userdata.yaml.tftpl", {
+    username      = try(var.linux_instances.username, null)
+    password_hash = try(var.linux_instances.password_hash, null)
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
+  })
 
+  lifecycle {
+    ignore_changes = [user_data]
+  }
   root_block_device {
     volume_type           = "gp3"
     volume_size           = 50
@@ -61,7 +68,16 @@ resource "aws_instance" "windows" {
   subnet_id              = try(var.windows_instances.subnet_id, null)
   vpc_security_group_ids = try([var.windows_instances.security_group_id], [])
   key_name               = try(var.windows_instances.key_name, null)
-  user_data              = try(var.windows_instances.user_data, null)
+
+  user_data = templatefile("${path.module}/win-userdata.ps1.tftpl", {
+    username           = try(var.windows_instances.username, null)
+    password_to_change = try(var.windows_instances.password_to_change, null)
+    extra              = coalesce(try(var.windows_instances.user_data, null), "")
+  })
+
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 
   root_block_device {
     volume_type           = "gp3"

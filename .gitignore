@@ -33,3 +33,6 @@ inventory.json
 .DS_Store
 Thumbs.db
 
+# Other
+*draft*
+trash/

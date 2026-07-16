@@ -59,8 +59,10 @@ resource "aws_internet_gateway" "main" {
 }
 
 
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
+# Adopt the VPC's auto-created main route table instead of creating a second one.
+# Every VPC gets a default RT; managing it here avoids an orphaned unused table.
+resource "aws_default_route_table" "public" {
+  default_route_table_id = aws_vpc.main.default_route_table_id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -74,50 +76,3 @@ resource "aws_route_table" "public" {
     }
   )
 }
-
-resource "aws_route_table_association" "workload" {
-  for_each = aws_subnet.workload
-
-  subnet_id      = each.value.id
-  route_table_id = aws_route_table.public.id
-}
-
-moved {
-  from = aws_route_table_association.linux
-  to   = aws_route_table_association.workload["linux"]
-}
-
-moved {
-  from = aws_route_table_association.windows
-  to   = aws_route_table_association.workload["windows"]
-}
-
-# resource "aws_network_acl" "main" {
-#   vpc_id     = aws_vpc.main.id
-#   subnet_ids = [aws_subnet.linux.id, aws_subnet.windows.id]
-
-#   ingress {
-#     protocol   = "-1"
-#     rule_no    = 100
-#     action     = "allow"
-#     cidr_block = "0.0.0.0/0"
-#     from_port  = 0
-#     to_port    = 0
-#   }
-
-#   egress {
-#     protocol   = "-1"
-#     rule_no    = 100
-#     action     = "allow"
-#     cidr_block = "0.0.0.0/0"
-#     from_port  = 0
-#     to_port    = 0
-#   }
-
-#   tags = merge(
-#     var.tags,
-#     {
-#       Name = "${var.name_prefix}_nacl"
-#     }
-#   )
-# }

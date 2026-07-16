@@ -31,9 +31,6 @@ variable "owner_email" {
   }
 }
 
-# Shared across root/aws, root/azure, root/gcp so all three can read the
-# same env/<environment>.tfvars file - this root only ever reads the `azure`
-# slice, but the type has to accept aws/gcp too for that file to validate.
 variable "cloud_providers" {
   description = "Cloud provider configurations. Include only the providers you want to deploy."
   type        = map(any)
@@ -66,19 +63,6 @@ variable "instances" {
       try(var.instances.windows.count >= 0, true)
     )
     error_message = "Instance counts must be zero or greater."
-  }
-}
-
-variable "security" {
-  description = "Security configurations"
-  type        = map(any)
-  default = {
-    ssh = {
-      public_key_path = "../keys/stratus-provinfra.pub"
-    }
-    windows = {
-      username = "azureuser"
-    }
   }
 }
 

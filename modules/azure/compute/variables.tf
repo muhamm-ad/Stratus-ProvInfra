@@ -18,6 +18,8 @@ variable "linux_instances" {
     subnet_id                 = string
     network_security_group_id = string
     public_ip_ids             = list(string)
+    username                  = optional(string, "stratus")
+    password_hash             = optional(string, "")
   })
   default = null
 }
@@ -29,17 +31,11 @@ variable "windows_instances" {
     vm_size                   = string
     subnet_id                 = string
     network_security_group_id = string
-    admin_username            = string
-    admin_password            = string
+    username                  = optional(string, "stratus")
+    password_to_change        = optional(string, "Stratus@123")
   })
   default   = null
   sensitive = true
-}
-
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key for Linux VMs"
-  type        = string
-  default     = "../keys/stratus-terraform.pub"
 }
 
 variable "tags" {

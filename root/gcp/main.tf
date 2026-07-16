@@ -18,6 +18,8 @@ locals {
     },
     var.additional_tags
   )
+
+  username = regex("^([^@]+)", var.owner_email)[0]
 }
 
 resource "time_static" "creation_timestamp" {}
@@ -79,14 +81,15 @@ module "compute" {
     count        = local.linux_config.count
     machine_type = local.linux_config.instance_type.gcp
     subnet_name  = module.network.subnet_names.linux
+    username     = local.username
   } : null
 
   windows_instances = local.enable_windows ? {
     count          = local.windows_config.count
     machine_type   = local.windows_config.instance_type.gcp
     subnet_name    = module.network.subnet_names.windows
-    admin_username = var.security.windows.username
-    admin_password = var.security.windows.password # TODO: Add password via env var
+    username       = local.username
+    password_to_change = "Stratus@123"
   } : null
 
   tags = merge(local.common_tags, {

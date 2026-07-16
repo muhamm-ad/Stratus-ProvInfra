@@ -69,16 +69,6 @@ variable "instances" {
   }
 }
 
-variable "security" {
-  description = "Security configurations"
-  type        = map(any)
-  default = {
-    ssh = {
-      public_key_path = "../keys/stratus-provinfra.pub"
-    }
-  }
-}
-
 # Tagging
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"

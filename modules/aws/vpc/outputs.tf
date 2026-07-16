@@ -24,6 +24,6 @@ output "igw_id" {
 }
 
 output "route_table_public_id" {
-  description = "Public route table ID"
-  value       = aws_route_table.public.id
+  description = "Public (main/default) route table ID"
+  value       = aws_default_route_table.public.id
 }

@@ -39,16 +39,11 @@ resource "azurerm_linux_virtual_machine" "main" {
   location            = var.location
   resource_group_name = var.resource_group_name
   size                = try(var.linux_instances.vm_size, null)
-  admin_username      = "azureuser"
+  admin_username      = try(var.linux_instances.username, null)
 
   network_interface_ids = [
     azurerm_network_interface.linux[count.index].id
   ]
-
-  admin_ssh_key {
-    username   = "azureuser"
-    public_key = file(pathexpand(var.ssh_public_key_path))
-  }
 
   os_disk {
     caching              = "ReadWrite"

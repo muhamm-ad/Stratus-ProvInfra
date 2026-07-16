@@ -54,15 +54,5 @@ instances = {
   }
 }
 
-security = {
-  ssh = {
-    public_key_path = "~/.ssh/stratus-provinfra.pub"
-  }
-  windows = {
-    username = "azureuser"
-    password = "changeme" # set a strong password before applying; keep the populated *.tfvars file untracked
-  }
-}
-
 additional_tags = {
 }

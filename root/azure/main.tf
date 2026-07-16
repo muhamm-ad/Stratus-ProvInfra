@@ -18,6 +18,8 @@ locals {
     },
     var.additional_tags
   )
+
+  username = regex("^([^@]+)", var.owner_email)[0]
 }
 
 resource "time_static" "creation_timestamp" {}
@@ -75,7 +77,6 @@ module "compute" {
   name_prefix         = local.name_prefix
   resource_group_name = module.network.resource_group_name
   location            = local.azure_config.location
-  ssh_public_key_path = var.security.ssh.public_key_path
 
   linux_instances = local.enable_linux ? {
     count                     = local.linux_config.count
@@ -83,6 +84,7 @@ module "compute" {
     subnet_id                 = module.network.subnet_ids.linux
     network_security_group_id = module.nsg.nsg_id
     public_ip_ids             = module.network.public_ip_ids
+    username                  = local.username
   } : null
 
   windows_instances = local.enable_windows ? {
@@ -90,8 +92,8 @@ module "compute" {
     vm_size                   = local.windows_config.instance_type.azure
     subnet_id                 = module.network.subnet_ids.windows
     network_security_group_id = module.nsg.nsg_id
-    admin_username            = var.security.windows.username
-    admin_password            = var.security.windows.password # TODO: Add password via env var
+    username                  = local.username
+    password_to_change        = "Stratus@123"
   } : null
 
   tags = merge(local.common_tags, {

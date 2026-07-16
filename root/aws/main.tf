@@ -18,6 +18,8 @@ locals {
     },
     var.additional_tags
   )
+
+  username = regex("^([^@]+)", var.owner_email)[0]
 }
 
 resource "time_static" "creation_timestamp" {}
@@ -70,8 +72,6 @@ module "security" {
   name_prefix = local.name_prefix
   vpc_id      = module.vpc.vpc_id
 
-  ssh_public_key_path = var.security.ssh.public_key_path
-
   tags = merge(local.common_tags, {
     CreatedAt  = time_static.creation_timestamp.rfc3339
     ModifiedAt = time_static.modification_timestamp.rfc3339
@@ -88,17 +88,18 @@ module "compute" {
     instance_type     = local.linux_config.instance_type.aws
     subnet_id         = module.vpc.subnet_ids.linux
     security_group_id = module.security.security_group_id
-    key_name          = module.security.key_name
     user_data         = "#!/bin/bash\n\n# Install Nginx\napt-get update\napt-get install -y nginx"
+    username          = local.username
   } : null
 
   windows_instances = local.enable_windows ? {
-    count             = local.windows_config.count
-    instance_type     = local.windows_config.instance_type.aws
-    subnet_id         = module.vpc.subnet_ids.windows
-    security_group_id = module.security.security_group_id
-    key_name          = module.security.key_name
-    user_data         = "#!/bin/powershell\n\n# Install IIS\nInstall-WindowsFeature -Name Web-Server -IncludeManagementTools"
+    count              = local.windows_config.count
+    instance_type      = local.windows_config.instance_type.aws
+    subnet_id          = module.vpc.subnet_ids.windows
+    security_group_id  = module.security.security_group_id
+    user_data          = "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
+    username           = local.username
+    password_to_change = "Stratus@123"
   } : null
 
   tags = merge(local.common_tags, {
