@@ -12,7 +12,7 @@
 - **Single Responsibility**: Each module owns one logical unit (VPC networking, VM compute, security groups).
 - **Clear Contracts**: Every module has explicit `variables.tf`, `main.tf`, `outputs.tf`.
 - **No Magic**: All naming, tagging, and defaults are explicit; no hidden computed values.
-- **Versioning**: Pin provider versions in `terraform.tf`; use `~>` for patch-level flexibility.
+- **Versioning**: Pin provider versions in `terraform.tf`; use `~>` for patch-level flexibility. Modules also declare `required_version` / `required_providers`.
 
 ### 3. **DRY (Don't Repeat Yourself)**
 
@@ -64,6 +64,8 @@ non-null (e.g. `root/aws` requires `cloud_providers.aws != null`) — if you run
 `./scripts/deploy.sh aws` without an `aws` block in your tfvars, `terraform validate`
 fails immediately with a clear message instead of silently doing nothing.
 
+Empty AWS credential strings fall through to the default AWS credential chain (env vars / shared config / SSO).
+
 ### `instances`
 
 Structured object with optional `linux` and `windows` blocks. Defaults to `{}` (no VMs).
@@ -100,6 +102,20 @@ When an OS is omitted:
 - No subnet for that OS is created in network modules
 - Inventory and outputs report `0` for that OS count
 
+### Identity (no `security` tfvars block)
+
+Admin usernames are derived in each root:
+
+```hcl
+username = regex("^([^@]+)", var.owner_email)[0]
+```
+
+For example, `owner_email = "alice@example.com"` yields username `alice`. That
+value is passed into compute modules (and into AWS user-data templates).
+
+Windows initial passwords are currently set in each root's `main.tf` (not via
+tfvars). Change them there before deploying to non-lab environments.
+
 ## Module Dependency Graph
 
 Each cloud is its own root, so there's no cross-cloud `count`/conditional wiring - a
@@ -108,15 +124,15 @@ given root always instantiates its modules exactly once:
 ```text
 root/aws/    → modules/aws/vpc/
                modules/aws/security/
-               modules/aws/compute/    (per enabled OS)
+               modules/aws/compute/    (+ linux-userdata.yaml, win-userdata.ps1)
 
 root/azure/  → modules/azure/network/  (subnets per enabled OS)
                modules/azure/nsg/
                modules/azure/compute/  (per enabled OS)
 
-root/gcp/    → modules/gcp/network/    (subnets per enabled OS)
+root/gcp/    → modules/gcp/network/    (subnets per enabled OS + Cloud NAT)
                modules/gcp/firewall/
-               modules/gcp/compute/    (per enabled OS)
+               modules/gcp/compute/  (per enabled OS)
 ```
 
 Only the OS blocks (`linux`/`windows`) are still conditional within a root, via
@@ -161,7 +177,7 @@ module "compute" {
 2. `root/<cloud>/variables.tf` validates types/constraints and requires its own
    `cloud_providers.<cloud>` slice to be non-null
 3. `root/<cloud>/main.tf` locals alias that slice (e.g. `local.aws_config`), compute
-   OS enable flags, naming prefix, and tags
+   OS enable flags, naming prefix, username from `owner_email`, and tags
 4. `root/<cloud>/main.tf` passes inputs to its modules
 5. Each module creates only the resources for enabled OS workloads
 
@@ -173,17 +189,19 @@ module "compute" {
   isolated local state
 - State files stored under `root/<cloud>/terraform.tfstate.d/<workspace>/`
 - No remote backend or distributed locking (suitable for local / solo use)
-- Sensitive data (passwords, keys) marked as `sensitive = true`
 - Deploying to more than one cloud means running `deploy.sh`/`destroy.sh` once per
-  cloud - there's no single combined multi-cloud apply anymore
+  cloud - there's no single combined multi-cloud apply
 
 ## Network Module Design
 
 Network modules use `for_each` on `subnet_configs` so subnets are created only for enabled operating systems:
 
-- **AWS** (`modules/aws/vpc`): `aws_subnet.workload` keyed by OS name
-- **Azure** (`modules/azure/network`): `azurerm_subnet.workload` keyed by OS name
-- **GCP** (`modules/gcp/network`): `google_compute_subnetwork.workload` keyed by OS name
+- **AWS** (`modules/aws/vpc`): `aws_subnet.workload` keyed by OS name; all workload
+  subnets are public (`map_public_ip_on_launch = true`) with an IGW default route
+- **Azure** (`modules/azure/network`): `azurerm_subnet.workload` keyed by OS name;
+  static Standard public IPs are created for Linux VMs
+- **GCP** (`modules/gcp/network`): `google_compute_subnetwork.workload` keyed by OS
+  name; Cloud Router + Cloud NAT for private outbound
 
 `moved` blocks preserve state when upgrading from static `linux`/`windows` subnet resources.
 
@@ -200,7 +218,6 @@ Examples:
 - Linux VMs: `dev_stratus_linux_1`, `dev_stratus_linux_2`
 - Windows VMs: `dev_stratus_windows_1`, `dev_stratus_windows_2`
 - Security Group: `dev_stratus_sg`
-- SSH Key: `dev_stratus_key`
 
 **Rationale**: Globally unique within account/subscription/project; obvious from name which env and component; sortable by age (env prefix).
 
@@ -220,6 +237,9 @@ Every resource inherits:
 }
 ```
 
+AWS also applies provider `default_tags` including `Provider = "AWS"`. Timestamps
+come from `time_static` resources in each root.
+
 **Audit**: By `Owner`, `CreatedAt`; filter by `ManagedBy="terraform"`.  
 **RBAC**: Azure/GCP IAM roles keyed on `Owner`; Stratus Gateway inventory filters by owner email.
 
@@ -227,19 +247,38 @@ Every resource inherits:
 
 ### Linux VMs (Ubuntu 24.04 LTS)
 
-- Instance types: AWS t3.micro (dev), t3.large (prod)
-- Image: Latest Ubuntu 24.04 LTS (updated monthly)
-- SSH: Public key from `security.ssh.public_key_path`
-- Storage: 30 GB root volume
-- Network: Public IP on AWS (via IGW), private on Azure/GCP (NAT)
+| Aspect | AWS | Azure | GCP |
+|--------|-----|-------|-----|
+| Image | SSM param (Canonical Ubuntu 24.04 amd64) | Canonical Jammy `24_04-lts-gen2` | `ubuntu-2404-lts` |
+| Disk | 50 GB gp3, encrypted | 32 GB Premium_LRS | 32 GB pd-ssd |
+| Network | Public IP (public subnet) | Public IP attached | External IP (`access_config`) |
+| Auth | Cloud-init user from `owner_email` | `admin_username` from `owner_email` | Instance metadata / OS login as configured |
+| User data | `linux-userdata.yaml` template | None | None |
+| Monitoring | EC2 detailed monitoring on | — | — |
+
+AWS Linux user data (`modules/aws/compute/linux-userdata.yaml`):
+
+- Creates a single sudo user (`${username}`), no default cloud user
+- Optionally runs caller-supplied `extra` shell (root currently installs Nginx)
+- `lifecycle { ignore_changes = [user_data] }` so later template edits do not force replace
 
 ### Windows VMs (Windows Server 2022)
 
-- Instance types: AWS t3.small, Azure Standard_B2s, GCP e2-small
-- Image: Latest Windows Server 2022 (patched)
-- RDP: Admin user (default: "azureuser"), password via `security.windows.password`
-- Storage: 32 GB root volume
-- Network: Private IP (Windows typically doesn't need direct internet in test scenarios)
+| Aspect | AWS | Azure | GCP |
+|--------|-----|-------|-----|
+| Image | Windows Server 2022 Full Base | 2022-Datacenter | `windows-2022` |
+| Disk | 50 GB gp3, encrypted | 32 GB Premium_LRS | 32 GB pd-ssd |
+| Network | Public IP (public subnet) | Private IP only | Private IP only |
+| Auth | Local admin via user data | Admin credentials on VM resource | As configured on instance |
+| User data | `win-userdata.ps1` template | None | None |
+
+AWS Windows user data (`modules/aws/compute/win-userdata.ps1`):
+
+- Creates a local admin + RDP user with an initial password
+- Sets account expiry (~10 minutes after first boot)
+- Installs and starts OpenSSH Server
+- Optionally runs caller-supplied `extra` PowerShell (root currently installs IIS)
+- Runs once via EC2Launch (no `<persist>` tag); `user_data` ignored on later applies
 
 ## State Management
 
@@ -264,8 +303,7 @@ the right workspace.
 
 **Sensitive Data in State**:
 
-- Windows admin password (marked `sensitive = true`)
-- SSH private key (never stored; user-managed)
+- Windows initial passwords and user-data content can appear in AWS state
 - State files are gitignored and must not be committed
 
 ## Scaling Considerations
@@ -291,15 +329,14 @@ the right workspace.
 
 ## Inventory
 
-**Inventory Export**: each cloud's `inventory` output is single-cloud shaped (no more
-combined `aws`/`azure`/`gcp` wrapper, since each root only ever knows about one cloud).
+**Inventory Export**: each cloud's `inventory` output is single-cloud shaped.
 `deploy.sh <cloud>` exports it automatically after apply:
 
 ```bash
 terraform output -json inventory > stratus-inventory-<cloud>.json
 ```
 
-**Inventory Format** (per cloud):
+**AWS inventory fields**:
 
 ```json
 {
@@ -310,13 +347,23 @@ terraform output -json inventory > stratus-inventory-<cloud>.json
       "name": "dev_stratus_linux_1",
       "provider": "aws",
       "os": "linux",
-      "ip": "203.0.113.1",
+      "type": "t3.micro",
+      "private_ip": "10.0.1.10",
+      "public_ip": "203.0.113.1",
+      "public_dns": "ec2-203-0-113-1.compute-1.amazonaws.com",
       "region": "us-east-1",
       "state": "running"
     }
   ]
 }
 ```
+
+**Azure / GCP inventory fields**: `id`, `name`, `provider`, `os`, `ip`, `region`,
+`state`. On GCP, Linux prefers external IP; Windows uses internal IP. Azure
+inventory currently reports private IP for both OS types.
+
+The AWS root's detailed `instances` output is currently commented out; use
+`inventory` (or Azure/GCP `instances` outputs) instead.
 
 If you need a single combined multi-cloud inventory file (e.g. for the Stratus
 Gateway integration), merge `stratus-inventory-aws.json`, `stratus-inventory-azure.json`,
@@ -330,12 +377,14 @@ automatically since a given apply only ever has one cloud's data available.
 - Naming conventions (resource names match pattern)
 - Unused variables/outputs
 - Cloud-specific best practices (e.g., enable encryption, versioning)
+- CI: `.github/workflows/lint.yml` (matrix: ubuntu / macos / windows)
 
 **Validation** (`terraform validate`):
 
 - Syntax correctness
 - Required variable presence
 - Type mismatches on structured objects
+- CI: `.github/workflows/validate.yml` (fmt check + init/validate per `root/<cloud>`)
 
 **Plan Review** (`terraform plan`):
 
@@ -345,38 +394,36 @@ automatically since a given apply only ever has one cloud's data available.
 
 **Post-Deploy Verification**:
 
-- SSH to Linux VMs; verify cloud-init logs
-- RDP to Windows VMs; verify Windows Update
+- SSH/RDP to VMs using inventory IPs
+- On AWS Linux, check cloud-init logs; on AWS Windows, confirm OpenSSH/`sshd`
 - Check security group rules (AWS/GCP) and NSG (Azure)
 - Verify tags on all resources
 
 ## Security Best Practices
 
-1. **Network Isolation**:
-   - Linux subnets public, Windows private
-   - NAT Gateway for outbound Windows traffic
-   - Network ACLs on AWS for stateless filtering
+1. **Network**:
+   - AWS: all workload subnets are public today; tighten SG CIDRs for production
+   - Azure/GCP: Linux public (or external), Windows private; GCP uses Cloud NAT for outbound
+   - Default SSH/RDP rules allow `0.0.0.0/0` — restrict to your IP before production use
 
 2. **Access Control**:
-   - SSH key-based auth (no passwords)
-   - RDP admin password enforced (12+ chars, complexity)
-   - Security groups restrict ports 22, 3389
+   - AWS Linux: cloud-init creates the `owner_email` local-part user with passwordless sudo
+   - AWS Windows: short-lived local admin + OpenSSH; change/rotate credentials after first login
+   - Prefer key-based SSH where you wire `key_name` / SSH keys yourself
 
 3. **Encryption**:
+   - AWS root volumes encrypted (gp3)
    - State files stored locally (gitignored; protect the machine that holds them)
-   - SSH in transit (TLS/OpenSSH)
-   - Windows passwords marked `sensitive` (Terraform logs redacted)
 
 4. **Monitoring & Audit**:
-   - CloudWatch detailed monitoring on EC2
-   - VNet flow logs on Azure
-   - Cloud Logging on GCP
+   - CloudWatch detailed monitoring on AWS EC2
    - All infrastructure changes tagged with date, owner
 
 5. **Credential Management**:
-   - SSH public key in repo (OK)
-   - SSH private key in `~/.ssh` (user-managed, not in repo)
-   - Windows password via env var or tfvars `security.windows.password` (never commit secrets)
+   - Keep `env/*.tfvars` untracked
+   - Do not commit Windows passwords or cloud keys
+   - Optional helper: `./scripts/generate-ssh-key.sh` creates `~/.ssh/stratus-provinfra`
+     (RSA 4096); Terraform does not currently create an AWS key pair from it
 
 ## Troubleshooting Guide
 
@@ -386,10 +433,11 @@ automatically since a given apply only ever has one cloud's data available.
 2. **"Error: resource already exists"** → State mismatch. Use `terraform import` or `terraform destroy` + recreate.
 3. **"Error: subnet CIDR conflicts"** → CIDR overlaps. Check `vpc_cidr`, `vnet_cidr`, `network_cidr` in `cloud_providers`.
 4. **Windows admin password rejected** → Password doesn't meet Azure/GCP complexity (12+ chars, mixed case, numbers, symbols).
-5. **SSH key not found** → Run `./scripts/generate-ssh-key.sh` and verify `security.ssh.public_key_path`.
+5. **Cannot SSH to AWS Linux** → Use inventory `public_ip` / `public_dns` and the username from `owner_email` (not necessarily `ubuntu`). Ensure SG allows your source IP on port 22.
 6. **Unexpected resources created** → Check that omitted OS blocks are removed from tfvars, not set to empty objects.
 7. **`cloud_providers.<cloud> to be set` validation error** → You ran `deploy.sh <cloud>` but that cloud's block is missing from `env/<environment>.tfvars`; add it or run a different cloud.
-8. **`azurerm`/`google` auth errors while running `root/aws`** → Shouldn't happen: `root/aws` only declares the `aws` provider. If you see this, you're likely running commands from the old combined `root/` path instead of `root/aws` - `cd` into the right per-cloud directory.
+8. **`azurerm`/`google` auth errors while running `root/aws`** → Shouldn't happen: `root/aws` only declares the `aws` provider. If you see this, you're likely running commands from the wrong directory — `cd` into `root/aws`.
+9. **User data not updating on AWS** → Expected: `lifecycle.ignore_changes = [user_data]`. Recreate the instance (taint/replace) to re-run first-boot scripts.
 
 **Debug Steps** (run from the relevant `root/<cloud>` directory):
 

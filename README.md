@@ -30,7 +30,7 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 - **Modular Terraform**: Provider-specific modules for networking, security, and compute
 - **DRY principles**: Single-source-of-truth for naming conventions and tags
 - **Environment layering**: dev/prod configurations with cost-aware sizing
-- **Production-ready**: Validation, encryption, monitoring, and tagging built-in
+- **AWS user data**: Cloud-init (Linux) and PowerShell (Windows) first-boot templates
 
 ### Key Features
 
@@ -65,6 +65,9 @@ All three roots read the **same** `env/*.tfvars` file, structured via two variab
 Each root requires its own `cloud_providers.<cloud>` slice to be present (validated at
 `terraform validate` time). Omit an OS block entirely to skip provisioning it; when a
 block is present, all nested fields are required.
+
+VM admin usernames are derived from the local-part of `owner_email` (e.g.
+`alice@example.com` → `alice`). There is no separate `security` block in tfvars.
 
 ```hcl
 # AWS only, Linux only
@@ -113,14 +116,11 @@ See `env/dev.tfvars.exemple` for a full multi-cloud example.
 git clone https://github.com/muhamm-ad/stratus-provinfra.git
 cd stratus-provinfra
 
-# 2. Generate SSH key (for Linux VMs)
-./scripts/generate-ssh-key.sh
-
-# 3. Copy and edit environment config
+# 2. Copy and edit environment config
 cp env/dev.tfvars.exemple env/dev.tfvars
 # Edit cloud_providers and instances to match your target deployment(s)
 
-# 4. Initialize workspace and deploy - pick a cloud: aws, azure, or gcp
+# 3. Initialize workspace and deploy - pick a cloud: aws, azure, or gcp
 ./scripts/init.sh aws dev
 ./scripts/deploy.sh aws dev
 
@@ -131,10 +131,10 @@ terraform workspace select dev   # or: terraform workspace new dev
 terraform plan -var-file=../../env/dev.tfvars -out=tfplan
 terraform apply tfplan
 
-# 5. Export inventory
+# 4. Export inventory (deploy.sh does this automatically)
 terraform output -json inventory > ../../stratus-inventory-aws.json
 
-# To deploy to more than one cloud, repeat steps 4-5 for azure and/or gcp -
+# To deploy to more than one cloud, repeat steps 3-4 for azure and/or gcp -
 # each cloud is a fully independent apply with its own state.
 ```
 
@@ -145,7 +145,9 @@ For detailed setup, see [docs/QUICK_START.md](docs/QUICK_START.md).
 ## VM Inventory
 
 Each cloud's `inventory` output is exported in JSON format, one file per cloud
-(`deploy.sh <cloud>` does this automatically after apply):
+(`deploy.sh <cloud>` does this automatically after apply).
+
+**AWS** inventory includes separate IP and DNS fields:
 
 ```json
 {
@@ -156,13 +158,19 @@ Each cloud's `inventory` output is exported in JSON format, one file per cloud
       "name": "dev_stratus_linux_1",
       "provider": "aws",
       "os": "linux",
-      "ip": "203.0.113.1",
+      "type": "t3.micro",
+      "private_ip": "10.0.1.10",
+      "public_ip": "203.0.113.1",
+      "public_dns": "ec2-203-0-113-1.compute-1.amazonaws.com",
       "region": "us-east-1",
       "state": "running"
     }
   ]
 }
 ```
+
+**Azure** and **GCP** inventory use a single `ip` field (private on Azure; Linux
+prefers external IP on GCP, Windows uses internal).
 
 To combine inventories from multiple clouds into one file, merge
 `stratus-inventory-aws.json`, `stratus-inventory-azure.json`, and
@@ -250,17 +258,17 @@ terraform apply -var-file=../../env/dev.tfvars \
 
 ### Best Practices
 
-- SSH keys managed locally (not in repo)
-- Windows passwords set in an untracked `*.tfvars` file (or overridden via `TF_VAR_security`) — never committed
 - State files stored locally per cloud, per workspace (gitignored; not committed)
-- All VMs tagged for RBAC filtering
-- Security groups restrict SSH (22) and RDP (3389) to authorized sources
+- All VMs tagged for RBAC filtering (`Owner` from `owner_email`)
+- Security groups / NSGs allow SSH (22) and RDP (3389); tighten CIDRs for production
+- AWS Windows user data creates a short-lived local admin (account expires ~10 minutes
+  after first boot) and installs OpenSSH Server
+- Do not commit secrets in tfvars — keep `env/*.tfvars` untracked
 
 ### Sensitive Data
 
-All sensitive outputs (passwords, keys) are marked `sensitive = true` in Terraform.
 State files live under `root/<cloud>/terraform.tfstate.d/<workspace>/` and are
-excluded from version control.
+excluded from version control. Initial Windows passwords appear in user data / state on AWS — treat state as sensitive.
 
 ---
 

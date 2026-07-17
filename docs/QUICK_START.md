@@ -14,6 +14,8 @@ A multi-cloud infrastructure-as-code project to provision test VMs across AWS, A
   cloud provider truly optional. See [ARCHITECTURE.md](ARCHITECTURE.md) for why.
 - **Environment layering**: `env/dev.tfvars`, `env/prod.tfvars` — shared across all
   three roots; each root just reads the slice relevant to it
+- **AWS user data**: first-boot Linux (cloud-init) and Windows (PowerShell) templates
+  under `modules/aws/compute/`
 
 ## Configuration Model
 
@@ -64,6 +66,13 @@ instances = {
 
 When a block is present, all nested fields (`count`, `instance_type`, `cidr`) are required.
 
+### Identity
+
+- Set `owner_email` in tfvars. The VM admin username is the email local-part
+  (`alice@example.com` → `alice`).
+- There is no `security` block in tfvars. Windows initial passwords are set in each
+  `root/<cloud>/main.tf` today — edit them there before non-lab deploys.
+
 ## Prerequisites
 
 1. **OpenTofu** v1.5+ or **Terraform** v1.5+
@@ -73,24 +82,16 @@ When a block is present, all nested fields (`count`, `instance_type`, `cidr`) ar
    - Azure: `az cli` + `az login` with credentials
    - GCP: `gcloud cli` + `gcloud auth application-default login`
 
-3. **SSH Key** (for Linux VMs)
+3. **SSH key (optional)**
 
    ```bash
    ./scripts/generate-ssh-key.sh
-   # Creates ~/.ssh/stratus-provinfra (private) and ~/.ssh/stratus-provinfra.pub
+   # Creates ~/.ssh/stratus-provinfra (RSA 4096) and .pub
    ```
 
-   Point `security.ssh.public_key_path` in your tfvars at the `.pub` file (defaults
-   to `~/.ssh/stratus-provinfra.pub` in the example tfvars).
-
-4. **Windows Admin Password** (for Azure/GCP Windows VMs)
-
-   Set it directly in your tfvars under `security.windows.password` (see
-   `env/dev.tfvars.exemple`), or override it without putting it in a file:
-
-   ```bash
-   export TF_VAR_security='{"ssh":{"public_key_path":"~/.ssh/stratus-provinfra.pub"},"windows":{"username":"azureuser","password":"MySecureP@ssw0rd123"}}'
-   ```
+   Terraform does not currently create an AWS key pair from this key. Use it for
+   manual SSH if you attach the public key yourself, or rely on AWS user data /
+   Instance Connect as configured.
 
 ## Quick Setup
 
@@ -130,6 +131,9 @@ aws configure
 # Enter: Access Key ID, Secret Key, Region (us-east-1), Output format (json)
 ```
 
+Leave `access_key` / `secret_key` / `access_token` empty in tfvars to use the
+default credential chain.
+
 **Azure**:
 
 ```bash
@@ -168,15 +172,14 @@ each is a fully independent apply with its own state.
 Run these from within the cloud's root directory (e.g. `root/aws`):
 
 ```bash
-# Get all deployed resource details
-terraform output -json > inventory.json
-
-# View this cloud's instances
-terraform output -json instances | jq .
-
-# This cloud's inventory (Stratus Gateway format)
+# This cloud's inventory (Stratus Gateway format) — preferred
 terraform output -json inventory | jq .
+
+# Azure / GCP also expose a detailed instances output
+terraform output -json instances | jq .
 ```
+
+`deploy.sh` writes `stratus-inventory-<cloud>.json` at the repo root after apply.
 
 ## Common Tasks
 
@@ -212,9 +215,13 @@ instances = {}
 ### Destroy Everything
 
 ```bash
-./scripts/destroy.sh aws dev --confirm
+./scripts/destroy.sh aws dev
+# Non-interactive:
+./scripts/destroy.sh aws dev -auto-approve
 # Repeat per cloud - destroy.sh only ever tears down one cloud's state at a time
 ```
+
+Extra arguments are passed through to `terraform destroy` (there is no `--confirm` flag).
 
 ### Update VM Sizing
 
@@ -250,7 +257,9 @@ terraform plan -var-file=../../env/dev.tfvars \
 
 After deployment, each cloud's `inventory` output contains that cloud's VM details
 (single-cloud shaped - there's no combined `aws`/`azure`/`gcp` wrapper since each
-root only ever knows about one cloud):
+root only ever knows about one cloud).
+
+**AWS example**:
 
 ```json
 {
@@ -261,13 +270,19 @@ root only ever knows about one cloud):
       "name": "dev_stratus_linux_1",
       "provider": "aws",
       "os": "linux",
-      "ip": "203.0.113.1",
+      "type": "t3.micro",
+      "private_ip": "10.0.1.10",
+      "public_ip": "203.0.113.1",
+      "public_dns": "ec2-203-0-113-1.compute-1.amazonaws.com",
       "region": "us-east-1",
       "state": "running"
     }
   ]
 }
 ```
+
+Azure and GCP use a single `ip` field instead of `private_ip` / `public_ip` /
+`public_dns`.
 
 Export to a JSON file (done automatically by `deploy.sh <cloud>`):
 
@@ -325,16 +340,31 @@ terraform plan -var-file=../../env/dev.tfvars   # from root/aws
 ```
 
 Using `dev.tfvars` while on the `prod` workspace (or vice versa) can corrupt or
-replace the wrong infrastructure. The deploy and destroy scripts handle workspace
-selection automatically, per cloud.
+replace the wrong infrastructure. Run `init.sh` for the target cloud/env before
+manual plan/apply; `deploy.sh` / `destroy.sh` use the currently selected workspace.
 
 ### SSH Access to Linux VMs (AWS)
 
 ```bash
-# from root/aws
-PUB_IP=$(terraform output -json instances | jq -r '.linux_instances[0].public_ip')
-ssh -i ~/.ssh/stratus-provinfra ubuntu@$PUB_IP
+# from root/aws — username is the local-part of owner_email
+PUB_IP=$(terraform output -json inventory | jq -r '.vms[] | select(.os=="linux") | .public_ip' | head -1)
+ssh "$USER_FROM_OWNER_EMAIL@$PUB_IP"
 ```
+
+AWS Linux cloud-init creates that user with passwordless sudo. Default AMI user
+`ubuntu` may not exist when the template does not include `- default` users.
+
+### AWS Windows access
+
+User data creates a local admin (username from `owner_email`), enables RDP, installs
+OpenSSH Server, and expires the account shortly after first boot. Connect quickly
+after launch, then rotate credentials. Prefer inventory `public_ip` for SSH/RDP.
+
+### User data not changing after edit
+
+AWS instances ignore `user_data` changes after create
+(`lifecycle.ignore_changes = [user_data]`). Replace the instance to re-run first-boot
+scripts.
 
 ## Cost Estimation
 
@@ -356,9 +386,9 @@ ssh -i ~/.ssh/stratus-provinfra ubuntu@$PUB_IP
 
 1. **Integrate with Stratus Gateway**: Export inventory (per cloud) and configure Stratus to discover these VMs
 2. **Add monitoring**: CloudWatch (AWS), Monitor (Azure), Cloud Monitoring (GCP)
-3. **Harden security**: Restrict SSH/RDP to your IP, add bastion hosts
+3. **Harden security**: Restrict SSH/RDP CIDRs to your IP; rotate Windows passwords out of root `main.tf`
 4. **Scale to production**: Use `env/prod.tfvars` with larger instances and backups
-5. **CI/CD**: Set up GitHub Actions to validate and plan changes on PR, per `root/<cloud>`
+5. **CI/CD**: GitHub Actions already run `tflint` and `terraform validate` per `root/<cloud>` on PR
 
 ## Contributing
 
