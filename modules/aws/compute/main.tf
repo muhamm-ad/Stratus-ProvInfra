@@ -19,7 +19,7 @@ data "aws_ami" "windows" {
   owners      = ["amazon"]
 
   filter {
-    name   = "name"
+    name = "name"
     # values = ["Windows_Server-2022-English-Core-*"]
     values = ["Windows_Server-2022-English-Full-Base-*"]
   }

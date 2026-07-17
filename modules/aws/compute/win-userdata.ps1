@@ -13,7 +13,14 @@ Add-LocalGroupMember -Group 'Remote Desktop Users' -Member '${username}'
 # Force password change at first login.
 # The initial password (visible in user_data) becomes unusable after the first login.
 # net user '${username}' /logonpasswordchg:yes
-net user ${username} /expires:$(Get-Date).AddDays(7).ToString('MM/dd/yyyy')
+
+# Set password to expire in 10 minutes
+net user ${username} /expires:$(Get-Date).AddMinutes(10).ToString('MM/dd/yyyy')
+
+# Install OpenSSH Server to allow SSH access to the instance
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
 
 # Extra user_data from caller
 ${extra}
