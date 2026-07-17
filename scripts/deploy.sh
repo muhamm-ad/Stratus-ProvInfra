@@ -2,8 +2,13 @@
 set -euo pipefail
 
 CLOUD="${1:-}"
-ENV="${2:-dev}"
-PLAN_ONLY="${3:-}"
+shift || true
+
+ENV="dev"
+if [[ "${1:-}" == "dev" || "${1:-}" == "prod" ]]; then
+  ENV="$1"
+  shift
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
@@ -11,18 +16,18 @@ TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
 
 usage() {
   cat <<EOF
-Usage: $0 <aws|azure|gcp> [dev|prod] [--plan-only]
+Usage: $0 <aws|azure|gcp> [dev|prod] [terraform apply options...]
 
 Deploy Stratus-ProvInfra to one cloud using root/<cloud> and
 env/<environment>.tfvars (shared across all three clouds - this only reads
 the cloud_providers.<cloud> slice of that file).
 
-To deploy to more than one cloud, run this script once per cloud - each
-cloud is a fully independent root config with its own state.
+Any extra arguments are passed through to \`terraform apply\`.
 
 Examples:
   $0 aws dev
-  $0 azure prod --plan-only
+  $0 azure prod -auto-approve
+  $0 gcp dev -target=module.compute
 
 Before first run:
   ./scripts/init.sh aws dev
@@ -56,19 +61,8 @@ terraform fmt -recursive ../..
 echo "==> Validating..."
 terraform validate
 
-echo "==> Planning (${CLOUD}/${ENV})..."
-terraform plan -var-file="${TFVARS}" -out=tfplan
+echo "==> Applying (${CLOUD}/${ENV})..."
+terraform apply -var-file="${TFVARS}" "$@"
 
-if [[ "${PLAN_ONLY}" == "--plan-only" ]]; then
-  echo "Plan saved to root/${CLOUD}/tfplan. Run 'terraform apply tfplan' to deploy."
-  exit 0
-fi
-
-read -r -p "Apply plan? [y/N] " confirm
-if [[ "${confirm}" =~ ^[Yy]$ ]]; then
-  terraform apply tfplan
-  terraform output -json inventory > "../../stratus-inventory-${CLOUD}.json"
-  echo "Inventory exported to stratus-inventory-${CLOUD}.json"
-else
-  echo "Apply cancelled. Plan saved to root/${CLOUD}/tfplan."
-fi
+terraform output -json inventory > "../../stratus-inventory-${CLOUD}.json"
+echo "Inventory exported to stratus-inventory-${CLOUD}.json"

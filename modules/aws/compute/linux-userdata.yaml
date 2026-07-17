@@ -1,20 +1,16 @@
 #cloud-config
 # No "- default": only the user below is created.
 # WARNING: check the hash before applying, there is no backup user.
+
+packages:
+  - fail2ban
+  # - ec2-instance-connect
+
 users:
   - name: ${username}
     sudo: ALL=(ALL) NOPASSWD:ALL
     groups: sudo
     shell: /bin/bash
-    lock_passwd: false
-    passwd: ${password_hash}
-
-# Enables PasswordAuthentication in sshd_config and properly restarts sshd
-# (also manages the file 60-cloudimg-settings.conf on Ubuntu 22.04+)
-ssh_pwauth: true
-
-packages:
-  - fail2ban
 
 write_files:
   - path: /etc/fail2ban/jail.local

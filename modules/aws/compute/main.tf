@@ -20,7 +20,8 @@ data "aws_ami" "windows" {
 
   filter {
     name   = "name"
-    values = ["Windows_Server-2022-English-Core-*"]
+    # values = ["Windows_Server-2022-English-Core-*"]
+    values = ["Windows_Server-2022-English-Full-Base-*"]
   }
 }
 
@@ -32,10 +33,10 @@ resource "aws_instance" "linux" {
   subnet_id              = try(var.linux_instances.subnet_id, null)
   vpc_security_group_ids = try([var.linux_instances.security_group_id], [])
   key_name               = try(var.linux_instances.key_name, null)
-  user_data = templatefile("${path.module}/linux-userdata.yaml.tftpl", {
-    username      = try(var.linux_instances.username, null)
-    password_hash = try(var.linux_instances.password_hash, null)
-    extra         = coalesce(try(var.linux_instances.user_data, null), "")
+  user_data = templatefile("${path.module}/linux-userdata.yaml", {
+    username = try(var.linux_instances.username, null)
+    # password_hash = try(var.linux_instances.password_hash, null)
+    extra = coalesce(try(var.linux_instances.user_data, null), "")
   })
 
   lifecycle {
@@ -69,7 +70,7 @@ resource "aws_instance" "windows" {
   vpc_security_group_ids = try([var.windows_instances.security_group_id], [])
   key_name               = try(var.windows_instances.key_name, null)
 
-  user_data = templatefile("${path.module}/win-userdata.ps1.tftpl", {
+  user_data = templatefile("${path.module}/win-userdata.ps1", {
     username           = try(var.windows_instances.username, null)
     password_to_change = try(var.windows_instances.password_to_change, null)
     extra              = coalesce(try(var.windows_instances.user_data, null), "")

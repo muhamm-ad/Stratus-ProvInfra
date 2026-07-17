@@ -2,7 +2,13 @@
 set -euo pipefail
 
 CLOUD="${1:-}"
-ENV="${2:-dev}"
+shift || true
+
+ENV="dev"
+if [[ "${1:-}" == "dev" || "${1:-}" == "prod" ]]; then
+  ENV="$1"
+  shift
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
@@ -10,13 +16,16 @@ TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
 
 usage() {
   cat <<EOF
-Usage: $0 <aws|azure|gcp> [dev|prod]
+Usage: $0 <aws|azure|gcp> [dev|prod] [terraform destroy options...]
 
 Destroy all resources managed for the given cloud and environment.
 
+Any extra arguments are passed through to \`terraform destroy\`.
+
 Examples:
   $0 aws dev
-  $0 azure prod
+  $0 azure prod -auto-approve
+  $0 gcp dev -target=module.compute
 EOF
 }
 
@@ -37,4 +46,4 @@ if [ ! -f "${TFVARS}" ]; then
 fi
 
 cd "${ROOT_DIR}"
-terraform destroy -var-file="${TFVARS}"
+terraform destroy -var-file="${TFVARS}" "$@"

@@ -85,10 +85,10 @@ module "compute" {
   } : null
 
   windows_instances = local.enable_windows ? {
-    count          = local.windows_config.count
-    machine_type   = local.windows_config.instance_type.gcp
-    subnet_name    = module.network.subnet_names.windows
-    username       = local.username
+    count              = local.windows_config.count
+    machine_type       = local.windows_config.instance_type.gcp
+    subnet_name        = module.network.subnet_names.windows
+    username           = local.username
     password_to_change = "Stratus@123"
   } : null
 
