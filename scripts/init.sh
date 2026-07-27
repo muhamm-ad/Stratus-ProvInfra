@@ -51,6 +51,9 @@ if ! terraform workspace select "${ENV}" 2>/dev/null; then
   terraform workspace new "${ENV}"
 fi
 
+echo "==> Formatting..."
+terraform fmt -recursive ../..
+
 echo "Active workspace: $(terraform workspace show)"
 echo ""
 echo "Next steps:"

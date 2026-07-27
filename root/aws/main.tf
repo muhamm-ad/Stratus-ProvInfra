@@ -89,7 +89,7 @@ module "compute" {
     subnet_id         = module.vpc.subnet_ids.linux
     security_group_id = module.security.security_group_id
     user_data         = local.linux_config.script
-    username          = local.username
+    username          = local.linux_config.username != "" ? local.linux_config.username : local.username
     disk              = local.linux_config.disk.aws
   } : null
 
@@ -99,8 +99,8 @@ module "compute" {
     subnet_id          = module.vpc.subnet_ids.windows
     security_group_id  = module.security.security_group_id
     user_data          = local.windows_config.script
-    username           = local.username
-    password_to_change = "Stratus@123"
+    username           = local.windows_config.username != "" ? local.windows_config.username : local.username
+    password_to_change = local.windows_config.password_to_change != "" ? local.windows_config.password_to_change : "Stratus@123"
     disk               = local.windows_config.disk.aws
   } : null
 

@@ -11,14 +11,14 @@ variable "linux_instances" {
     security_group_id = string
     key_name          = optional(string, null)
     user_data         = optional(string)
-    username          = optional(string, "ubuntu")
-    password_hash     = optional(string, "")
-    disk = {
+    username          = optional(string)
+    password_hash     = optional(string)
+    disk = optional(object({
       size = optional(number, 40)
       type = optional(string, "gp3")
-    }
+    }), {})
   })
-  default = null
+  default   = null
   sensitive = true
 }
 
@@ -31,14 +31,14 @@ variable "windows_instances" {
     security_group_id  = string
     key_name           = optional(string, null)
     user_data          = optional(string)
-    username           = optional(string, "stratus")
-    password_to_change = optional(string, "Stratus@123")
-    disk = {
+    username           = optional(string)
+    password_to_change = optional(string)
+    disk = optional(object({
       size = optional(number, 50)
       type = optional(string, "gp3")
-    }
+    }), {})
   })
-  default = null
+  default   = null
   sensitive = true
 }
 

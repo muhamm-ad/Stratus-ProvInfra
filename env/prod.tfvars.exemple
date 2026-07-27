@@ -55,6 +55,8 @@ instances = {
       }
     }
     script = "#!/bin/bash\n\n# Install Nginx\napt-get update\napt-get install -y nginx"
+    username = "stratus" # if not set, owner_email will be used
+    password_hash = ""
   }
   windows = {
     count = 1
@@ -83,6 +85,7 @@ instances = {
       }
     }
     script = "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
+    password_to_change = "Stratus@123"
   }
 }
 

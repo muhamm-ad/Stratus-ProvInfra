@@ -18,3 +18,11 @@ output "public_ips" {
     }
   }
 }
+
+
+output "network_interface_ids" {
+  value = {
+    linux   = [for nic in azurerm_network_interface.linux[*] : nic.id]
+    windows = [for nic in azurerm_network_interface.windows[*] : nic.id]
+  }
+}

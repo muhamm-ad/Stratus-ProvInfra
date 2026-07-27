@@ -16,10 +16,6 @@ variable "network_security_group_ids" {
     linux   = string
     windows = string
   })
-  default = {
-    linux   = null
-    windows = null
-  }
 }
 
 

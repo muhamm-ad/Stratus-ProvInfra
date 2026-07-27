@@ -35,10 +35,10 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 
   admin_username = var.linux_instances.username
-  admin_ssh_key {
-    username   = var.linux_instances.username
-    public_key = var.linux_instances.key_name
-  }
+  # admin_ssh_key { # FIXME: add support for SSH key
+  #   username   = var.linux_instances.username
+  #   public_key = var.linux_instances.key_name
+  # }
 
   custom_data = base64encode(templatefile("${local.userdata_dir}/linux-userdata.yaml", {
     username = var.linux_instances.username

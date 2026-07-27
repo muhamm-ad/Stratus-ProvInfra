@@ -1,6 +1,6 @@
 output "resource_group" {
   description = "Azure Resource Group name"
-  value       = module.network.resource_group_name
+  value       = azurerm_resource_group.main.name
 }
 
 output "vnet_id" {
@@ -14,19 +14,19 @@ output "instances" {
     linux_instances = [
       for i, vm in module.compute.linux_instances : {
         id         = vm.id
-        private_ip = vm.private_ip
-        public_ip  = try(vm.public_ip, "Not assigned")
+        private_ip = vm.private_ip_address
+        public_ip  = try(vm.public_ip_address, module.network.public_ips.linux.addresses[i], "Not assigned")
         name       = vm.name
-        vm_size    = vm.vm_size
+        vm_size    = vm.size
       }
     ]
     windows_instances = [
       for i, vm in module.compute.windows_instances : {
         id         = vm.id
-        private_ip = vm.private_ip
-        public_ip  = try(vm.public_ip, "Not assigned")
+        private_ip = vm.private_ip_address
+        public_ip  = try(vm.public_ip_address, module.network.public_ips.windows.addresses[i], "Not assigned")
         name       = vm.name
-        vm_size    = vm.vm_size
+        vm_size    = vm.size
       }
     ]
   }
@@ -48,7 +48,7 @@ output "inventory" {
         name     = vm.name
         provider = "azure"
         os       = "linux"
-        ip       = vm.private_ip
+        ip       = vm.private_ip_address
         region   = local.azure_config.location
         state    = "running"
       }],
@@ -57,7 +57,7 @@ output "inventory" {
         name     = vm.name
         provider = "azure"
         os       = "windows"
-        ip       = vm.private_ip
+        ip       = vm.private_ip_address
         region   = local.azure_config.location
         state    = "running"
       }]

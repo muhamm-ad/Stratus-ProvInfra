@@ -51,14 +51,23 @@ variable "instances" {
       count         = number
       instance_type = map(string)
       cidr          = map(string)
+      disk          = map(any)
+      script        = optional(string)
+      username      = optional(string, "")
+      password_hash = optional(string, "")
     }))
     windows = optional(object({
-      count         = number
-      instance_type = map(string)
-      cidr          = map(string)
+      count              = number
+      instance_type      = map(string)
+      cidr               = map(string)
+      disk               = map(any)
+      script             = optional(string)
+      username           = optional(string, "")
+      password_to_change = optional(string, "")
     }))
   })
-  default = {}
+  default   = {}
+  sensitive = true
 
   validation {
     condition = (

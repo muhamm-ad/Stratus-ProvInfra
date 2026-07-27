@@ -21,4 +21,6 @@ provider "azurerm" {
   client_secret   = try(var.cloud_providers.azure.client_secret, "")
   tenant_id       = try(var.cloud_providers.azure.tenant_id, "")
 
+  skip_provider_registration = true
+
 }
