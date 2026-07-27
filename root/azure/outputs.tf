@@ -8,29 +8,13 @@ output "vnet_id" {
   value       = module.network.vnet_id
 }
 
-output "instances" {
-  description = "Azure VM instances details"
-  value = {
-    linux_instances = [
-      for i, vm in module.compute.linux_instances : {
-        id         = vm.id
-        private_ip = vm.private_ip_address
-        public_ip  = try(vm.public_ip_address, module.network.public_ips.linux.addresses[i], "Not assigned")
-        name       = vm.name
-        vm_size    = vm.size
-      }
-    ]
-    windows_instances = [
-      for i, vm in module.compute.windows_instances : {
-        id         = vm.id
-        private_ip = vm.private_ip_address
-        public_ip  = try(vm.public_ip_address, module.network.public_ips.windows.addresses[i], "Not assigned")
-        name       = vm.name
-        vm_size    = vm.size
-      }
-    ]
-  }
-}
+# output "instances" {
+#   description = "Azure VM instances details"
+#   value = {
+#     linux_instances   = module.compute.linux_instances
+#     windows_instances = module.compute.windows_instances
+#   }
+# }
 
 output "nsg_id" {
   description = "Azure Network Security Group ID"
@@ -44,22 +28,26 @@ output "inventory" {
     total_vms = try(var.instances.linux.count, 0) + try(var.instances.windows.count, 0)
     vms = concat(
       [for vm in module.compute.linux_instances : {
-        id       = vm.id
-        name     = vm.name
-        provider = "azure"
-        os       = "linux"
-        ip       = vm.private_ip_address
-        region   = local.azure_config.location
-        state    = "running"
+        id         = vm.id
+        name       = vm.name
+        provider   = "azure"
+        os         = "linux"
+        private_ip = vm.private_ip_address
+        public_ip  = vm.public_ip_address
+        # public_dns = vm.public_dns
+        region = local.azure_config.location
+        state  = "running"
       }],
       [for vm in module.compute.windows_instances : {
-        id       = vm.id
-        name     = vm.name
-        provider = "azure"
-        os       = "windows"
-        ip       = vm.private_ip_address
-        region   = local.azure_config.location
-        state    = "running"
+        id         = vm.id
+        name       = vm.name
+        provider   = "azure"
+        os         = "windows"
+        private_ip = vm.private_ip_address
+        public_ip  = vm.public_ip_address
+        # public_dns = vm.public_dns
+        region = local.azure_config.location
+        state  = "running"
       }]
     )
   }

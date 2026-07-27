@@ -15,7 +15,7 @@ locals {
 resource "azurerm_linux_virtual_machine" "main" {
   count = try(var.linux_instances.count, 0)
 
-  name                = "${var.name_prefix}_linux_${count.index + 1}"
+  name                = replace("${var.name_prefix}_l_${count.index + 1}", "_", "-")
   location            = var.location
   resource_group_name = var.resource_group_name
   size                = var.linux_instances.vm_size
@@ -34,15 +34,19 @@ resource "azurerm_linux_virtual_machine" "main" {
     version   = "latest"
   }
 
-  admin_username = var.linux_instances.username
+  disable_password_authentication = false
+  admin_username                  = var.linux_instances.username
+  admin_password                  = var.windows_instances.password_to_change
+
   # admin_ssh_key { # FIXME: add support for SSH key
   #   username   = var.linux_instances.username
   #   public_key = var.linux_instances.key_name
   # }
 
   custom_data = base64encode(templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-    username = var.linux_instances.username
-    extra    = coalesce(try(var.linux_instances.user_data, null), "")
+    username      = coalesce(try(var.linux_instances.username, null), "")
+    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
   }))
   lifecycle {
     ignore_changes = [custom_data]
@@ -58,19 +62,20 @@ resource "azurerm_linux_virtual_machine" "main" {
 resource "azurerm_windows_virtual_machine" "main" {
   count = try(var.windows_instances.count, 0)
 
-  name                = "${var.name_prefix}_windows_${count.index + 1}"
+  name                = replace("${var.name_prefix}_w_${count.index + 1}", "_", "-")
   location            = var.location
   resource_group_name = var.resource_group_name
   size                = var.windows_instances.vm_size
-  admin_username      = var.windows_instances.username
-  admin_password      = var.windows_instances.password_to_change
+
+  admin_username = var.windows_instances.username
+  admin_password = var.windows_instances.password_to_change
   network_interface_ids = [
     var.windows_instances.network_interface_ids[count.index]
   ]
   os_disk {
     caching              = var.windows_instances.disk.caching
     storage_account_type = var.windows_instances.disk.type
-    disk_size_gb         = var.windows_instances.disk.size_gb
+    # disk_size_gb         = var.windows_instances.disk.size_gb
   }
   source_image_reference {
     publisher = "MicrosoftWindowsServer"

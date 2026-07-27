@@ -64,6 +64,7 @@ variable "instances" {
     }))
   })
   default = {}
+  # sensitive = true
 
   validation {
     condition = (

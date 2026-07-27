@@ -13,11 +13,12 @@ variable "region" {
 variable "linux_instances" {
   description = "Linux instance configuration. Null disables Linux instances."
   type = object({
-    count        = number
-    machine_type = string
-    subnet_name  = string
-    user_data    = optional(string)
-    username     = optional(string, "ubuntu")
+    count         = number
+    machine_type  = string
+    subnet_name   = string
+    user_data     = optional(string)
+    username      = optional(string, "ubuntu")
+    password_hash = optional(string, "")
     disk = optional(object({
       size = optional(number, 32)
       type = optional(string, "pd-ssd")

@@ -95,7 +95,8 @@ module "network" {
 }
 
 module "compute" {
-  source = "../../modules/azure/compute"
+  source     = "../../modules/azure/compute"
+  depends_on = [module.network]
 
   name_prefix         = local.name_prefix
   resource_group_name = azurerm_resource_group.main.name
@@ -108,6 +109,7 @@ module "compute" {
     network_interface_ids = module.network.network_interface_ids.linux
     user_data             = local.linux_config.script
     username              = local.linux_config.username != "" ? local.linux_config.username : local.username
+    password_hash         = local.linux_config.password_hash
     disk                  = local.linux_config.disk.azure
   } : null
 

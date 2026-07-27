@@ -8,29 +8,13 @@ output "security_group_id" {
   value       = module.security.security_group_id
 }
 
-# output "instances" {
-#   description = "AWS EC2 instances details"
-#   value = {
-#     linux_instances = [
-#       for i, vm in module.compute.linux_instances : {
-#         id            = vm.id
-#         private_ip    = vm.private_ip
-#         public_ip     = vm.public_ip
-#         public_dns    = vm.public_dns
-#         instance_type = vm.instance_type
-#       }
-#     ]
-#     windows_instances = [
-#       for i, vm in module.compute.windows_instances : {
-#         id            = vm.id
-#         private_ip    = vm.private_ip
-#         public_ip     = vm.public_ip
-#         public_dns    = vm.public_dns
-#         instance_type = vm.instance_type
-#       }
-#     ]
-#   }
-# }
+output "instances" {
+  description = "AWS EC2 instances details"
+  value = {
+    linux_instances   = module.compute.linux_instances
+    windows_instances = module.compute.windows_instances
+  }
+}
 
 # Inventory (for Stratus Gateway integration)
 output "inventory" {
@@ -40,27 +24,27 @@ output "inventory" {
     vms = concat(
       [for vm in module.compute.linux_instances : {
         id         = vm.id
-        name       = vm.tags.Name
+        name       = vm.name
         provider   = "aws"
         os         = "linux"
-        type       = vm.instance_type
+        type       = vm.type
         private_ip = vm.private_ip
         public_ip  = vm.public_ip
         public_dns = vm.public_dns
         region     = local.aws_config.region
-        state      = "running"
+        # state      = "running"
       }],
       [for vm in module.compute.windows_instances : {
         id         = vm.id
-        name       = vm.tags.Name
+        name       = vm.name
         provider   = "aws"
         os         = "windows"
-        type       = vm.instance_type
+        type       = vm.type
         private_ip = vm.private_ip
         public_ip  = vm.public_ip
         public_dns = vm.public_dns
         region     = local.aws_config.region
-        state      = "running"
+        # state      = "running"
       }]
     )
   }

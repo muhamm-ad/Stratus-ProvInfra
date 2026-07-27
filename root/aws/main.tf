@@ -90,6 +90,7 @@ module "compute" {
     security_group_id = module.security.security_group_id
     user_data         = local.linux_config.script
     username          = local.linux_config.username != "" ? local.linux_config.username : local.username
+    password_hash     = local.linux_config.password_hash
     disk              = local.linux_config.disk.aws
   } : null
 

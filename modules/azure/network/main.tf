@@ -34,7 +34,7 @@ resource "azurerm_public_ip" "linux" {
   resource_group_name = var.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
-  domain_name_label   = replace(lower("${var.name_prefix}-linux-${count.index + 1}"), "_", "-")
+  # domain_name_label   = replace(lower("${var.name_prefix}-linux-${count.index + 1}"), "_", "-")
 
   tags = var.tags
 }
@@ -47,7 +47,7 @@ resource "azurerm_public_ip" "windows" {
   resource_group_name = var.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
-  domain_name_label   = replace(lower("${var.name_prefix}-windows-${count.index + 1}"), "_", "-")
+  # domain_name_label   = replace(lower("${var.name_prefix}-windows-${count.index + 1}"), "_", "-")
 
   tags = var.tags
 }

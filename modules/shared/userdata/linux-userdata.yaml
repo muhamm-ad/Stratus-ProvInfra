@@ -1,14 +1,26 @@
 #cloud-config
 # Shared across AWS, Azure, and GCP.
-# No "- default": only the user below is created.
 # WARNING: check the hash before applying, there is no backup user.
+# Terraform templatefile interpolates ${username}, ${password_hash}, and ${extra}.
 
+%{ if username != "" ~}
+# No "- default": only the user below is created.
 users:
   # - default
   - name: ${username}
     sudo: ALL=(ALL) NOPASSWD:ALL
     groups: sudo
     shell: /bin/bash
+%{ if password_hash != "" ~}
+    lock_passwd: false
+    passwd: "${password_hash}"
+%{ endif ~}
+%{ endif ~}
+
+%{ if password_hash != "" ~}
+# Allow SSH login with the password set above (otherwise only key auth works).
+ssh_pwauth: true
+%{ endif ~}
 
 # packages:
 #   - fail2ban

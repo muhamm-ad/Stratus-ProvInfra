@@ -78,12 +78,13 @@ module "compute" {
   region      = local.gcp_config.region
 
   linux_instances = local.enable_linux ? {
-    count        = local.linux_config.count
-    machine_type = local.linux_config.instance_type.gcp
-    subnet_name  = module.network.subnet_names.linux
-    user_data    = local.linux_config.script
-    username     = local.linux_config.username != "" ? local.linux_config.username : local.username
-    disk         = local.linux_config.disk.gcp
+    count         = local.linux_config.count
+    machine_type  = local.linux_config.instance_type.gcp
+    subnet_name   = module.network.subnet_names.linux
+    user_data     = local.linux_config.script
+    username      = local.linux_config.username != "" ? local.linux_config.username : local.username
+    password_hash = local.linux_config.password_hash
+    disk          = local.linux_config.disk.gcp
   } : null
 
   windows_instances = local.enable_windows ? {

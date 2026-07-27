@@ -66,8 +66,8 @@ variable "instances" {
       password_to_change = optional(string, "")
     }))
   })
-  default   = {}
-  sensitive = true
+  default = {}
+  # sensitive = true
 
   validation {
     condition = (

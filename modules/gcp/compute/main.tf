@@ -47,8 +47,9 @@ resource "google_compute_instance" "linux" {
 
   metadata = {
     user-data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-      username = try(var.linux_instances.username, "ubuntu")
-      extra    = coalesce(try(var.linux_instances.user_data, null), "")
+      username      = coalesce(try(var.linux_instances.username, null), "")
+      password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+      extra         = coalesce(try(var.linux_instances.user_data, null), "")
     })
   }
 

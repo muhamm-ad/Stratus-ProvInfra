@@ -46,9 +46,9 @@ resource "aws_instance" "linux" {
 
   key_name = try(var.linux_instances.key_name, null)
   user_data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-    username = try(var.linux_instances.username, null)
-    # password_hash = try(var.linux_instances.password_hash, null)
-    extra = coalesce(try(var.linux_instances.user_data, null), "")
+    username      = coalesce(try(var.linux_instances.username, null), "")
+    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
   })
   lifecycle {
     ignore_changes = [user_data]
