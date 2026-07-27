@@ -3,6 +3,7 @@
 # WARNING: check the hash before applying, there is no backup user.
 
 users:
+  # - default
   - name: ${username}
     sudo: ALL=(ALL) NOPASSWD:ALL
     groups: sudo

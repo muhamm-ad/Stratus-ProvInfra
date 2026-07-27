@@ -88,8 +88,9 @@ module "compute" {
     instance_type     = local.linux_config.instance_type.aws
     subnet_id         = module.vpc.subnet_ids.linux
     security_group_id = module.security.security_group_id
-    user_data         = "#!/bin/bash\n\n# Install Nginx\napt-get update\napt-get install -y nginx"
+    user_data         = local.linux_config.script
     username          = local.username
+    disk              = local.linux_config.disk.aws
   } : null
 
   windows_instances = local.enable_windows ? {
@@ -97,9 +98,10 @@ module "compute" {
     instance_type      = local.windows_config.instance_type.aws
     subnet_id          = module.vpc.subnet_ids.windows
     security_group_id  = module.security.security_group_id
-    user_data          = "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
+    user_data          = local.windows_config.script
     username           = local.username
     password_to_change = "Stratus@123"
+    disk               = local.windows_config.disk.aws
   } : null
 
   tags = merge(local.common_tags, {

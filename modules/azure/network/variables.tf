@@ -10,13 +10,28 @@ variable "location" {
   type = string
 }
 
+
+variable "network_security_group_ids" {
+  type = object({
+    linux   = string
+    windows = string
+  })
+  default = {
+    linux   = null
+    windows = null
+  }
+}
+
+
 variable "vnet_cidr" {
   type = string
 }
 
-variable "linux_count" {
-  type    = number
-  default = 2
+variable "instances" {
+  description = "Linux instance configuration. Null disables Linux instances."
+  type = map(object({
+    count = number
+  }))
 }
 
 variable "subnet_configs" {

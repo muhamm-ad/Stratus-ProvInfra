@@ -1,4 +1,3 @@
-<powershell>
 # Executed ONLY ONCE by EC2Launch at the first boot.
 # No <persist> tag: a reboot or a future apply will not re-execute this script.
 
@@ -24,4 +23,3 @@ Set-Service -Name sshd -StartupType Automatic
 
 # Extra user_data from caller
 ${extra}
-</powershell>

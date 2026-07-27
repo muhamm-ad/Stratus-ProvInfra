@@ -8,54 +8,40 @@ terraform {
   }
 }
 
-resource "azurerm_network_interface" "linux" {
-  count = try(var.linux_instances.count, 0)
-
-  name                = "${var.name_prefix}_nic_linux_${count.index + 1}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = try(var.linux_instances.subnet_id, null)
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = try(var.linux_instances.public_ip_ids[count.index], null)
-  }
-
-  tags = var.tags
-}
-
-resource "azurerm_network_interface_security_group_association" "linux" {
-  count = try(var.linux_instances.count, 0)
-
-  network_interface_id      = azurerm_network_interface.linux[count.index].id
-  network_security_group_id = try(var.linux_instances.network_security_group_id, null)
-}
-
 resource "azurerm_linux_virtual_machine" "main" {
   count = try(var.linux_instances.count, 0)
 
   name                = "${var.name_prefix}_linux_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  size                = try(var.linux_instances.vm_size, null)
-  admin_username      = try(var.linux_instances.username, null)
-
+  size                = var.linux_instances.vm_size
   network_interface_ids = [
-    azurerm_network_interface.linux[count.index].id
+    var.linux_instances.network_interface_ids[count.index]
   ]
-
   os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 32
+    caching              = var.linux_instances.disk.caching
+    storage_account_type = var.linux_instances.disk.type
+    disk_size_gb         = var.linux_instances.disk.size_gb
   }
-
   source_image_reference {
     publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "24_04-lts-gen2"
+    offer     = "ubuntu-24_04-lts" # "0001-com-ubuntu-server-jammy"
+    sku       = "server"
     version   = "latest"
+  }
+
+  admin_username = var.linux_instances.username
+  admin_ssh_key {
+    username   = var.linux_instances.username
+    public_key = var.linux_instances.key_name
+  }
+
+  custom_data = base64encode(templatefile("${path.module}/linux-userdata.yaml", {
+    username = var.linux_instances.username
+    extra    = coalesce(try(var.linux_instances.user_data, null), "")
+  }))
+  lifecycle {
+    ignore_changes = [custom_data]
   }
 
   tags = merge(
@@ -64,28 +50,6 @@ resource "azurerm_linux_virtual_machine" "main" {
   )
 }
 
-resource "azurerm_network_interface" "windows" {
-  count = try(var.windows_instances.count, 0)
-
-  name                = "${var.name_prefix}_nic_windows_${count.index + 1}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = try(var.windows_instances.subnet_id, null)
-    private_ip_address_allocation = "Dynamic"
-  }
-
-  tags = var.tags
-}
-
-resource "azurerm_network_interface_security_group_association" "windows" {
-  count = try(var.windows_instances.count, 0)
-
-  network_interface_id      = azurerm_network_interface.windows[count.index].id
-  network_security_group_id = try(var.windows_instances.network_security_group_id, null)
-}
 
 resource "azurerm_windows_virtual_machine" "main" {
   count = try(var.windows_instances.count, 0)
@@ -93,20 +57,17 @@ resource "azurerm_windows_virtual_machine" "main" {
   name                = "${var.name_prefix}_windows_${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  size                = try(var.windows_instances.vm_size, null)
-  admin_username      = try(var.windows_instances.admin_username, null)
-  admin_password      = try(var.windows_instances.admin_password, null)
-
+  size                = var.windows_instances.vm_size
+  admin_username      = var.windows_instances.username
+  admin_password      = var.windows_instances.password_hash
   network_interface_ids = [
-    azurerm_network_interface.windows[count.index].id
+    var.windows_instances.network_interface_ids[count.index]
   ]
-
   os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 32
+    caching              = var.windows_instances.disk.caching
+    storage_account_type = var.windows_instances.disk.type
+    disk_size_gb         = var.windows_instances.disk.size_gb
   }
-
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
@@ -118,4 +79,18 @@ resource "azurerm_windows_virtual_machine" "main" {
     var.tags,
     { Name = "${var.name_prefix}_windows_${count.index + 1}" }
   )
+}
+
+resource "azurerm_virtual_machine_run_command" "windows_bootstrap" {
+  count = try(var.windows_instances.count, 0)
+
+  name               = "bootstrap"
+  location           = var.location
+  virtual_machine_id = azurerm_windows_virtual_machine.main[count.index].id
+
+  source {
+    script = templatefile("${path.module}/win-userdata-azure.ps1", {
+      extra = coalesce(try(var.windows_instances.user_data, null), "")
+    })
+  }
 }

@@ -16,5 +16,9 @@ terraform {
 provider "azurerm" {
   features {}
 
-  skip_provider_registration = false
+  subscription_id = try(var.cloud_providers.azure.subscription_id, "")
+  client_id       = try(var.cloud_providers.azure.client_id, "")
+  client_secret   = try(var.cloud_providers.azure.client_secret, "")
+  tenant_id       = try(var.cloud_providers.azure.tenant_id, "")
+
 }

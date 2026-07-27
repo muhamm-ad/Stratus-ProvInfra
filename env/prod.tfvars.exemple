@@ -7,21 +7,23 @@ owner_email  = "134101309+muhamm-ad@users.noreply.github.com"
 cloud_providers = {
   aws = {
     region       = "us-east-1"
-    access_key   = ""
-    secret_key   = ""
-    access_token = ""
+    access_key   = "your-access-key"
+    secret_key   = "your-secret-key"
+    access_token = "your-access-token"
     vpc_cidr     = "10.0.0.0/16"
   }
   azure = {
-    resource_group_name = ""
     location            = "eastus"
+    subscription_id     = "your-subscription-id"
+    client_id           = "your-client-id"
+    client_secret       = "your-client-secret"
+    tenant_id           = "your-tenant-id"
     vnet_cidr           = "10.1.0.0/16"
   }
   gcp = {
     project_id   = "project-1234567890"
     region       = "us-central1"
     network_cidr = "10.2.0.0/16"
-
   }
 }
 
@@ -38,6 +40,21 @@ instances = {
       azure = "10.1.1.0/24"
       gcp   = "10.2.1.0/24"
     }
+    disk = {
+      aws = {
+        size = 40
+        type = "gp3"
+      }
+      azure = {
+        size_gb = 32
+        type = "Premium_LRS"
+      }
+      gcp = {
+        size = 40
+        type = "gp3"
+      }
+    }
+    script = "#!/bin/bash\n\n# Install Nginx\napt-get update\napt-get install -y nginx"
   }
   windows = {
     count = 1
@@ -51,6 +68,21 @@ instances = {
       azure = "10.1.2.0/24"
       gcp   = "10.2.2.0/24"
     }
+    disk = {
+      aws = {
+        size = 50
+        type = "gp3"
+      }
+      azure = {
+        size_gb = 50
+        type = "Premium_LRS"
+      }
+      gcp = {
+        size = 50
+        type = "gp3"
+      }
+    }
+    script = "Install-WindowsFeature -Name Web-Server -IncludeManagementTools"
   }
 }
 

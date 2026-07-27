@@ -9,12 +9,17 @@ variable "linux_instances" {
     instance_type     = string
     subnet_id         = string
     security_group_id = string
-    key_name          = optional(string)
+    key_name          = optional(string, null)
     user_data         = optional(string)
     username          = optional(string, "ubuntu")
     password_hash     = optional(string, "")
+    disk = {
+      size = optional(number, 40)
+      type = optional(string, "gp3")
+    }
   })
   default = null
+  sensitive = true
 }
 
 variable "windows_instances" {
@@ -24,12 +29,17 @@ variable "windows_instances" {
     instance_type      = string
     subnet_id          = string
     security_group_id  = string
-    key_name           = optional(string)
+    key_name           = optional(string, null)
     user_data          = optional(string)
     username           = optional(string, "stratus")
     password_to_change = optional(string, "Stratus@123")
+    disk = {
+      size = optional(number, 50)
+      type = optional(string, "gp3")
+    }
   })
   default = null
+  sensitive = true
 }
 
 variable "tags" {

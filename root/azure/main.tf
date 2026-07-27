@@ -30,14 +30,31 @@ resource "time_static" "modification_timestamp" {
   }
 }
 
+resource "azurerm_resource_group" "main" {
+  name     = "${local.name_prefix}_rg"
+  location = local.azure_config.location
+}
+
 module "network" {
   source = "../../modules/azure/network"
 
   name_prefix         = local.name_prefix
-  resource_group_name = coalesce(local.azure_config.resource_group_name, "${local.name_prefix}_rg")
+  resource_group_name = azurerm_resource_group.main.name
   location            = local.azure_config.location
   vnet_cidr           = local.azure_config.vnet_cidr
-  linux_count         = try(local.linux_config.count, 0)
+
+  instances = merge(
+    local.enable_linux ? {
+      linux = {
+        count = local.linux_config.count
+      }
+    } : {},
+    local.enable_windows ? {
+      windows = {
+        count = local.windows_config.count
+      }
+    } : {}
+  )
 
   subnet_configs = merge(
     local.enable_linux ? {
@@ -62,7 +79,7 @@ module "nsg" {
   source = "../../modules/azure/nsg"
 
   name_prefix         = local.name_prefix
-  resource_group_name = module.network.resource_group_name
+  resource_group_name = azurerm_resource_group.main.name
   location            = local.azure_config.location
 
   tags = merge(local.common_tags, {
@@ -75,25 +92,28 @@ module "compute" {
   source = "../../modules/azure/compute"
 
   name_prefix         = local.name_prefix
-  resource_group_name = module.network.resource_group_name
+  resource_group_name = azurerm_resource_group.main.name
   location            = local.azure_config.location
 
   linux_instances = local.enable_linux ? {
     count                     = local.linux_config.count
     vm_size                   = local.linux_config.instance_type.azure
     subnet_id                 = module.network.subnet_ids.linux
-    network_security_group_id = module.nsg.nsg_id
-    public_ip_ids             = module.network.public_ip_ids
+    network_interface_ids     = module.network.network_interface_ids.linux
+    user_data                 = local.linux_config.script
     username                  = local.username
+    disk                      = local.linux_config.disk.azure
   } : null
 
   windows_instances = local.enable_windows ? {
     count                     = local.windows_config.count
     vm_size                   = local.windows_config.instance_type.azure
     subnet_id                 = module.network.subnet_ids.windows
-    network_security_group_id = module.nsg.nsg_id
+    network_interface_ids     = module.network.network_interface_ids.windows
+    user_data                 = local.windows_config.script
     username                  = local.username
     password_to_change        = "Stratus@123"
+    disk                      = local.windows_config.disk.azure
   } : null
 
   tags = merge(local.common_tags, {
