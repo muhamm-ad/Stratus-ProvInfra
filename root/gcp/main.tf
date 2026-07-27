@@ -81,6 +81,7 @@ module "compute" {
     count        = local.linux_config.count
     machine_type = local.linux_config.instance_type.gcp
     subnet_name  = module.network.subnet_names.linux
+    user_data    = local.linux_config.script
     username     = local.username
   } : null
 
@@ -88,6 +89,7 @@ module "compute" {
     count              = local.windows_config.count
     machine_type       = local.windows_config.instance_type.gcp
     subnet_name        = module.network.subnet_names.windows
+    user_data          = local.windows_config.script
     username           = local.username
     password_to_change = "Stratus@123"
   } : null

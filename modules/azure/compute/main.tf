@@ -8,6 +8,10 @@ terraform {
   }
 }
 
+locals {
+  userdata_dir = "${path.module}/../../shared/userdata"
+}
+
 resource "azurerm_linux_virtual_machine" "main" {
   count = try(var.linux_instances.count, 0)
 
@@ -36,7 +40,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     public_key = var.linux_instances.key_name
   }
 
-  custom_data = base64encode(templatefile("${path.module}/linux-userdata.yaml", {
+  custom_data = base64encode(templatefile("${local.userdata_dir}/linux-userdata.yaml", {
     username = var.linux_instances.username
     extra    = coalesce(try(var.linux_instances.user_data, null), "")
   }))
@@ -59,7 +63,7 @@ resource "azurerm_windows_virtual_machine" "main" {
   resource_group_name = var.resource_group_name
   size                = var.windows_instances.vm_size
   admin_username      = var.windows_instances.username
-  admin_password      = var.windows_instances.password_hash
+  admin_password      = var.windows_instances.password_to_change
   network_interface_ids = [
     var.windows_instances.network_interface_ids[count.index]
   ]
@@ -89,8 +93,12 @@ resource "azurerm_virtual_machine_run_command" "windows_bootstrap" {
   virtual_machine_id = azurerm_windows_virtual_machine.main[count.index].id
 
   source {
-    script = templatefile("${path.module}/win-userdata-azure.ps1", {
-      extra = coalesce(try(var.windows_instances.user_data, null), "")
+    # Admin user is already created by azurerm_windows_virtual_machine;
+    # skip user creation and only install OpenSSH + run extra script.
+    script = templatefile("${local.userdata_dir}/win-userdata.ps1", {
+      username           = ""
+      password_to_change = ""
+      extra              = coalesce(try(var.windows_instances.user_data, null), "")
     })
   }
 }

@@ -8,6 +8,10 @@ terraform {
   }
 }
 
+locals {
+  userdata_dir = "${path.module}/../../shared/userdata"
+}
+
 data "aws_ssm_parameter" "linux" {
   count = var.linux_instances != null ? 1 : 0
   name  = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
@@ -41,7 +45,7 @@ resource "aws_instance" "linux" {
   }
 
   key_name = try(var.linux_instances.key_name, null)
-  user_data = templatefile("${path.module}/linux-userdata.yaml", {
+  user_data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
     username = try(var.linux_instances.username, null)
     # password_hash = try(var.linux_instances.password_hash, null)
     extra = coalesce(try(var.linux_instances.user_data, null), "")
@@ -76,9 +80,9 @@ resource "aws_instance" "windows" {
   }
 
   key_name = try(var.windows_instances.key_name, null)
-  user_data = format("<powershell>\n%s\n</powershell>", templatefile("${path.module}/win-userdata.ps1", {
-    username           = try(var.windows_instances.username, null)
-    password_to_change = try(var.windows_instances.password_to_change, null)
+  user_data = format("<powershell>\n%s\n</powershell>", templatefile("${local.userdata_dir}/win-userdata.ps1", {
+    username           = coalesce(try(var.windows_instances.username, null), "")
+    password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
     extra              = coalesce(try(var.windows_instances.user_data, null), "")
   }))
   lifecycle {

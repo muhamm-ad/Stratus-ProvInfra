@@ -1,11 +1,15 @@
 terraform {
+  required_version = ">= 1.5.0"
   required_providers {
-    required_version = ">= 1.5.0"
     google = {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
   }
+}
+
+locals {
+  userdata_dir = "${path.module}/../../shared/userdata"
 }
 
 data "google_compute_image" "ubuntu" {
@@ -31,14 +35,25 @@ resource "google_compute_instance" "linux" {
   boot_disk {
     initialize_params {
       image = data.google_compute_image.ubuntu[0].self_link
-      size  = 32
-      type  = "pd-ssd"
+      size  = try(var.linux_instances.disk.size, 32)
+      type  = try(var.linux_instances.disk.type, "pd-ssd")
     }
   }
 
   network_interface {
     subnetwork = try(var.linux_instances.subnet_name, null)
     access_config {}
+  }
+
+  metadata = {
+    user-data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
+      username = try(var.linux_instances.username, "ubuntu")
+      extra    = coalesce(try(var.linux_instances.user_data, null), "")
+    })
+  }
+
+  lifecycle {
+    ignore_changes = [metadata]
   }
 
   labels = {
@@ -59,13 +74,25 @@ resource "google_compute_instance" "windows" {
   boot_disk {
     initialize_params {
       image = data.google_compute_image.windows[0].self_link
-      size  = 32
-      type  = "pd-ssd"
+      size  = try(var.windows_instances.disk.size, 50)
+      type  = try(var.windows_instances.disk.type, "pd-ssd")
     }
   }
 
   network_interface {
     subnetwork = try(var.windows_instances.subnet_name, null)
+  }
+
+  metadata = {
+    windows-startup-script-ps1 = templatefile("${local.userdata_dir}/win-userdata.ps1", {
+      username           = coalesce(try(var.windows_instances.username, null), "")
+      password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
+      extra              = coalesce(try(var.windows_instances.user_data, null), "")
+    })
+  }
+
+  lifecycle {
+    ignore_changes = [metadata]
   }
 
   labels = {
