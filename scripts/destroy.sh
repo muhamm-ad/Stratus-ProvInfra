@@ -12,7 +12,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
-TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
+TFVARS="${SCRIPT_DIR}/../config/${ENV}.tfvars"
 
 usage() {
   cat <<EOF

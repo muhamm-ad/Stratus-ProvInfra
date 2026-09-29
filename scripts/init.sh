@@ -15,7 +15,7 @@ Initialize Terraform and select (or create) the workspace for the given
 cloud's root config and environment.
 
 Each cloud has its own root config (root/<cloud>/) with its own provider
-and state, but all three read the same env/<environment>.tfvars file -
+and state, but all three read the same config/<environment>.tfvars file -
 each just uses the cloud_providers.<cloud> slice relevant to it.
 
 Examples:
@@ -57,6 +57,6 @@ terraform fmt -recursive ../..
 echo "Active workspace: $(terraform workspace show)"
 echo ""
 echo "Next steps:"
-echo "  cp env/${ENV}.tfvars.exemple env/${ENV}.tfvars"
+echo "  cp config/${ENV}.tfvars.exemple config/${ENV}.tfvars"
 echo "  ./scripts/generate-ssh-key.sh"
 echo "  ./scripts/deploy.sh ${CLOUD} ${ENV}"

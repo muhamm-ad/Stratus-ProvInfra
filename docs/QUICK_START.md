@@ -102,7 +102,7 @@ git clone https://github.com/muhamm-ad/stratus-provinfra.git
 cd stratus-provinfra
 
 # Copy and edit environment config
-cp env/dev.tfvars.exemple env/dev.tfvars
+cp config/dev.tfvars.exemple config/dev.tfvars
 
 # Initialize Terraform for the cloud(s) you want and select the dev workspace
 ./scripts/init.sh aws dev
@@ -148,7 +148,7 @@ gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-Set provider details in `env/dev.tfvars` under `cloud_providers`.
+Set provider details in `config/dev.tfvars` under `cloud_providers`.
 
 ### 3. Plan and Deploy
 
@@ -160,7 +160,7 @@ Set provider details in `env/dev.tfvars` under `cloud_providers`.
 cd root/aws
 terraform fmt -recursive ../..
 terraform validate
-terraform plan -var-file=../../env/dev.tfvars -out=tfplan
+terraform plan -var-file=../../config/dev.tfvars -out=tfplan
 terraform apply tfplan
 ```
 
@@ -225,16 +225,16 @@ Extra arguments are passed through to `terraform destroy` (there is no `--confir
 
 ### Update VM Sizing
 
-Edit `instances.<os>.instance_type` in `env/dev.tfvars`, then from `root/<cloud>`:
+Edit `instances.<os>.instance_type` in `config/dev.tfvars`, then from `root/<cloud>`:
 
 ```bash
-terraform plan -var-file=../../env/dev.tfvars
-terraform apply -var-file=../../env/dev.tfvars
+terraform plan -var-file=../../config/dev.tfvars
+terraform apply -var-file=../../config/dev.tfvars
 ```
 
 ### Scale VM Count
 
-Edit `instances.<os>.count` in `env/dev.tfvars`:
+Edit `instances.<os>.count` in `config/dev.tfvars`:
 
 ```hcl
 instances = {
@@ -249,7 +249,7 @@ instances = {
 
 ```bash
 # from root/<cloud>
-terraform plan -var-file=../../env/dev.tfvars \
+terraform plan -var-file=../../config/dev.tfvars \
   -var='additional_tags={"Team":"Platform","Cost":"100"}'
 ```
 
@@ -336,7 +336,7 @@ Always match the workspace to the tfvars file you are using, per cloud:
 
 ```bash
 ./scripts/init.sh aws dev          # select or create the dev workspace under root/aws
-terraform plan -var-file=../../env/dev.tfvars   # from root/aws
+terraform plan -var-file=../../config/dev.tfvars   # from root/aws
 ```
 
 Using `dev.tfvars` while on the `prod` workspace (or vice versa) can corrupt or
@@ -387,7 +387,7 @@ scripts.
 1. **Integrate with Stratus Gateway**: Export inventory (per cloud) and configure Stratus to discover these VMs
 2. **Add monitoring**: CloudWatch (AWS), Monitor (Azure), Cloud Monitoring (GCP)
 3. **Harden security**: Restrict SSH/RDP CIDRs to your IP; rotate Windows passwords out of root `main.tf`
-4. **Scale to production**: Use `env/prod.tfvars` with larger instances and backups
+4. **Scale to production**: Use `config/prod.tfvars` with larger instances and backups
 5. **CI/CD**: GitHub Actions already run `tflint` and `terraform validate` per `root/<cloud>` on PR
 
 ## Contributing

@@ -79,7 +79,7 @@ instances = {
 }
 ```
 
-See `env/dev.tfvars.exemple` for a full multi-cloud example.
+See `config/dev.tfvars.exemple` for a full multi-cloud example.
 
 ---
 
@@ -98,7 +98,7 @@ git clone https://github.com/muhamm-ad/stratus-provinfra.git
 cd stratus-provinfra
 
 # 2. Copy and edit environment config
-cp env/dev.tfvars.exemple env/dev.tfvars
+cp config/dev.tfvars.exemple config/dev.tfvars
 # Edit cloud_providers and instances to match your target deployment(s)
 
 # 3. Initialize workspace and deploy - pick a cloud: aws, azure, or gcp
@@ -109,7 +109,7 @@ cp env/dev.tfvars.exemple env/dev.tfvars
 cd root/aws
 terraform init
 terraform workspace select dev   # or: terraform workspace new dev
-terraform plan -var-file=../../env/dev.tfvars -out=tfplan
+terraform plan -var-file=../../config/dev.tfvars -out=tfplan
 terraform apply tfplan
 
 # 4. Export inventory (deploy.sh does this automatically)
@@ -215,7 +215,7 @@ Networking (VPC, VNet, firewall rules) is still created for whichever cloud's ro
 
 ```bash
 # from root/<cloud>
-terraform apply -var-file=../../env/dev.tfvars \
+terraform apply -var-file=../../config/dev.tfvars \
   -var='additional_tags={"Team":"Platform","CostCenter":"100"}'
 ```
 
@@ -229,7 +229,7 @@ terraform apply -var-file=../../env/dev.tfvars \
 - All VMs tagged for RBAC filtering (`Owner` from `owner_email`)
 - Security groups / NSGs allow SSH (22) and RDP (3389); tighten CIDRs for production
 - AWS Windows user data creates a short-lived local admin (account expires ~10 minutes after first boot) and installs OpenSSH Server
-- Do not commit secrets in tfvars, keep `env/*.tfvars` untracked
+- Do not commit secrets in tfvars, keep `config/*.tfvars` untracked
 
 ### Sensitive Data
 

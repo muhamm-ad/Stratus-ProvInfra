@@ -12,14 +12,14 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/../root/${CLOUD}"
-TFVARS="${SCRIPT_DIR}/../env/${ENV}.tfvars"
+TFVARS="${SCRIPT_DIR}/../config/${ENV}.tfvars"
 
 usage() {
   cat <<EOF
 Usage: $0 <aws|azure|gcp> [dev|prod] [terraform apply options...]
 
 Deploy Stratus-ProvInfra to one cloud using root/<cloud> and
-env/<environment>.tfvars (shared across all three clouds - this only reads
+config/<environment>.tfvars (shared across all three clouds - this only reads
 the cloud_providers.<cloud> slice of that file).
 
 Any extra arguments are passed through to \`terraform apply\`.
@@ -31,7 +31,7 @@ Examples:
 
 Before first run:
   ./scripts/init.sh aws dev
-  cp env/dev.tfvars.exemple env/dev.tfvars
+  cp config/dev.tfvars.exemple config/dev.tfvars
   ./scripts/generate-ssh-key.sh
 EOF
 }
@@ -49,7 +49,7 @@ fi
 
 if [ ! -f "${TFVARS}" ]; then
   echo "Environment file not found: ${TFVARS}"
-  echo "Copy env/${ENV}.tfvars.exemple to env/${ENV}.tfvars and edit it."
+  echo "Copy config/${ENV}.tfvars.exemple to config/${ENV}.tfvars and edit it."
   exit 1
 fi
 
