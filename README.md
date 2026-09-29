@@ -1,28 +1,20 @@
-<div align="center">
 
 # Stratus-ProvInfra
 
 **Infrastructure provisioning companion for [Stratus Gateway](https://github.com/muhamm-ad/stratus)**
 
-Provision Linux and/or Windows VMs across AWS, Azure, and GCP with production-grade Terraform.
-Features modular, reusable infrastructure code with DRY principles, environment layering, and
-unified inventory integration.
+Provision Linux and/or Windows VMs across AWS, Azure, and GCP with production-grade Terraform. Features modular, reusable infrastructure code with DRY principles, environment layering, and unified inventory integration.
 
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Terraform](https://img.shields.io/badge/Terraform-1.5%2B-blue)](https://www.terraform.io)
-[![Status](https://img.shields.io/badge/status-production--ready-brightgreen)](#quick-start)
-[![OpenTofu](https://img.shields.io/badge/OpenTofu-compatible-purple)](https://opentofu.org)
-
-</div>
+![License](https://img.shields.io/badge/license-MIT-green)
+![Terraform](https://img.shields.io/badge/Terraform-1.5%2B-blue)
+![Status](https://img.shields.io/badge/status-production--ready-brightgreen)
+![OpenTofu](https://img.shields.io/badge/OpenTofu-compatible-purple)
 
 ---
 
 ## Overview
 
-**Stratus-ProvInfra** is a multi-cloud infrastructure-as-code project that deploys and manages
-test VMs across AWS, Azure, and GCP. It's designed as the infrastructure foundation for
-[Stratus Gateway](https://github.com/muhamm-ad/stratus)—a desktop application that provides
-single sign-on, unified VM inventory, and one-click connectivity across cloud providers.
+**Stratus-ProvInfra** is a multi-cloud infrastructure-as-code project that deploys and manages test VMs across AWS, Azure, and GCP. It's designed as the infrastructure foundation for [Stratus Gateway](https://github.com/muhamm-ad/stratus), a desktop application that provides single sign-on, unified VM inventory, and one-click connectivity across cloud providers.
 
 ### What's Included
 
@@ -46,28 +38,17 @@ single sign-on, unified VM inventory, and one-click connectivity across cloud pr
 
 ## Configuration Model
 
-Each cloud has its own independent root config — `root/aws/`, `root/azure/`, `root/gcp/` —
-each with its own provider, state, and Terraform workspaces. **Which cloud gets deployed
-is chosen by which root you run** (`./scripts/deploy.sh aws|azure|gcp ...`), not by which
-keys you populate in tfvars. This is a hard Terraform constraint, not a style choice:
-providers are configured for every declared `provider` block regardless of resource
-usage, so the only way to make a cloud provider truly optional is to keep it out of the
-root entirely when you're not using it. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-for the full rationale.
-
+Each cloud has its own independent root config `root/aws/`, `root/azure/`, `root/gcp/`, each with its own provider, state, and Terraform workspaces. **Which cloud gets deployed is chosen by which root you run** (`./scripts/deploy.sh aws|azure|gcp ...`), not by which keys you populate in tfvars. This is a hard Terraform constraint, not a style choice: providers are configured for every declared `provider` block regardless of resource usage, so the only way to make a cloud provider truly optional is to keep it out of the root entirely when you're not using it. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full rationale.
 All three roots read the **same** `env/*.tfvars` file, structured via two variables:
 
-| Variable | Purpose |
-|----------|---------|
+| Variable          | Purpose                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `cloud_providers` | Connection details for `aws`, `azure`, `gcp`. Each root only reads its own slice, but you can fill in all three in one file. |
-| `instances` | Which operating systems to deploy (`linux`, `windows`), within whichever cloud you're running. Defaults to `{}` (no VMs). |
+| `instances`       | Which operating systems to deploy (`linux`, `windows`), within whichever cloud you're running. Defaults to `{}` (no VMs).    |
 
-Each root requires its own `cloud_providers.<cloud>` slice to be present (validated at
-`terraform validate` time). Omit an OS block entirely to skip provisioning it; when a
-block is present, all nested fields are required.
+Each root requires its own `cloud_providers.<cloud>` slice to be present (validated at `terraform validate` time). Omit an OS block entirely to skip provisioning it; when a block is present, all nested fields are required.
 
-VM admin usernames are derived from the local-part of `owner_email` (e.g.
-`alice@example.com` → `alice`). There is no separate `security` block in tfvars.
+VM admin usernames are derived from the local-part of `owner_email` (e.g. `alice@example.com` → `alice`). There is no separate `security` block in tfvars.
 
 ```hcl
 # AWS only, Linux only
@@ -144,10 +125,7 @@ For detailed setup, see [docs/QUICK_START.md](docs/QUICK_START.md).
 
 ## VM Inventory
 
-Each cloud's `inventory` output is exported in JSON format, one file per cloud
-(`deploy.sh <cloud>` does this automatically after apply).
-
-**AWS** inventory includes separate IP and DNS fields:
+Each cloud's `inventory` output is exported in JSON format, one file per cloud (`deploy.sh <cloud>` does this automatically after apply). **AWS** inventory includes separate IP and DNS fields:
 
 ```json
 {
@@ -169,22 +147,16 @@ Each cloud's `inventory` output is exported in JSON format, one file per cloud
 }
 ```
 
-**Azure** and **GCP** inventory use a single `ip` field (private on Azure; Linux
-prefers external IP on GCP, Windows uses internal).
-
-To combine inventories from multiple clouds into one file, merge
-`stratus-inventory-aws.json`, `stratus-inventory-azure.json`, and
-`stratus-inventory-gcp.json` yourself (e.g. with `jq -n`) — a single apply only
-ever has one cloud's data.
+To combine inventories from multiple clouds into one file, merge `stratus-inventory-aws.json`, `stratus-inventory-azure.json`, and `stratus-inventory-gcp.json` yourself (e.g. with `jq -n`), a single apply only ever has one cloud's data.
 
 ---
 
 ## Cost Estimation
 
-| Environment | Instance Types | Monthly Cost (per cloud) |
-|-------------|----------------|--------------|
-| **dev** | t3.micro, Standard_B1s, e2-micro | ~$5-10 |
-| **prod** | t3.large, Standard_D2s_v3, n1-standard-2 | ~$150-250 |
+| Environment | Instance Types                           | Monthly Cost (per cloud) |
+| ----------- | ---------------------------------------- | ------------------------ |
+| **dev**     | t3.micro, Standard_B1s, e2-micro         | ~$5-10                   |
+| **prod**    | t3.large, Standard_D2s_v3, n1-standard-2 | ~$150-250                |
 
 Costs scale with the number of clouds you deploy to and the OS workloads enabled on each.
 
@@ -194,16 +166,13 @@ Costs scale with the number of clouds you deploy to and the OS workloads enabled
 
 ### Deploy Only AWS
 
-Just run the AWS root — the other clouds' roots simply aren't invoked, so their
-providers are never configured or authenticated to:
+Just run the AWS root. The other clouds' roots simply aren't invoked, so their providers are never configured or authenticated to:
 
 ```bash
 ./scripts/deploy.sh aws dev
 ```
 
-Your `cloud_providers.azure`/`.gcp` blocks (if present in the shared tfvars) are
-ignored by this run; they only matter if you separately run `deploy.sh azure` or
-`deploy.sh gcp`.
+Your `cloud_providers.azure`/`.gcp` blocks (if present in the shared tfvars) are ignored by this run. They only matter if you separately run `deploy.sh azure` or `deploy.sh gcp`.
 
 ### Deploy Only Linux VMs
 
@@ -232,8 +201,7 @@ instances = {
 }
 ```
 
-Deployed via `deploy.sh aws`, `deploy.sh azure`, and `deploy.sh gcp`, `count = 5`
-creates 5 Linux VMs per cloud you actually ran (15 total across all three).
+Deployed via `deploy.sh aws`, `deploy.sh azure`, and `deploy.sh gcp`, `count = 5` creates 5 Linux VMs per cloud you actually ran (15 total across all three).
 
 ### Deploy Networking Only (No VMs)
 
@@ -241,8 +209,7 @@ creates 5 Linux VMs per cloud you actually ran (15 total across all three).
 instances = {}
 ```
 
-Networking (VPC, VNet, firewall rules) is still created for whichever cloud's root
-you run.
+Networking (VPC, VNet, firewall rules) is still created for whichever cloud's root you run.
 
 ### Add Custom Tags
 
@@ -261,20 +228,18 @@ terraform apply -var-file=../../env/dev.tfvars \
 - State files stored locally per cloud, per workspace (gitignored; not committed)
 - All VMs tagged for RBAC filtering (`Owner` from `owner_email`)
 - Security groups / NSGs allow SSH (22) and RDP (3389); tighten CIDRs for production
-- AWS Windows user data creates a short-lived local admin (account expires ~10 minutes
-  after first boot) and installs OpenSSH Server
-- Do not commit secrets in tfvars — keep `env/*.tfvars` untracked
+- AWS Windows user data creates a short-lived local admin (account expires ~10 minutes after first boot) and installs OpenSSH Server
+- Do not commit secrets in tfvars, keep `env/*.tfvars` untracked
 
 ### Sensitive Data
 
-State files live under `root/<cloud>/terraform.tfstate.d/<workspace>/` and are
-excluded from version control. Initial Windows passwords appear in user data / state on AWS — treat state as sensitive.
+State files live under `root/<cloud>/terraform.tfstate.d/<workspace>/` and are excluded from version control. Initial Windows passwords appear in user data / state on AWS, treat state as sensitive.
 
 ---
 
 ## Related Projects
 
-- **[Stratus Gateway](https://github.com/muhamm-ad/stratus)** — Desktop application for multi-cloud VM connectivity
-- **[Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest)** — AWS infrastructure provisioning
-- **[Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest)** — Azure infrastructure provisioning
-- **[Terraform Google Provider](https://registry.terraform.io/providers/hashicorp/google/latest)** — GCP infrastructure provisioning
+- **[Stratus Gateway](https://github.com/muhamm-ad/stratus)**, a desktop application for multi-cloud VM connectivity
+- **[Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest)**, AWS infrastructure provisioning
+- **[Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest)**, Azure infrastructure provisioning
+- **[Terraform Google Provider](https://registry.terraform.io/providers/hashicorp/google/latest)**, GCP infrastructure provisioning
