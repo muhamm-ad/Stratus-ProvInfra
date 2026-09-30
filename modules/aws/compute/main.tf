@@ -10,6 +10,26 @@ terraform {
 
 locals {
   userdata_dir = "${path.module}/../../shared/userdata"
+
+  linux_userdata = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
+    username      = coalesce(try(var.linux_instances.username, null), "")
+    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
+  })
+
+  windows_userdata = format("<powershell>\n%s\n</powershell>", templatefile("${local.userdata_dir}/win-userdata.ps1", {
+    username           = coalesce(try(var.windows_instances.username, null), "")
+    password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
+    extra              = coalesce(try(var.windows_instances.user_data, null), "")
+  }))
+}
+
+resource "terraform_data" "linux_userdata" {
+  input = local.linux_userdata
+}
+
+resource "terraform_data" "windows_userdata" {
+  input = local.windows_userdata
 }
 
 data "aws_ssm_parameter" "linux" {
@@ -44,14 +64,11 @@ resource "aws_instance" "linux" {
     encrypted             = true
   }
 
-  key_name = try(var.linux_instances.key_name, null)
-  user_data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-    username      = coalesce(try(var.linux_instances.username, null), "")
-    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
-    extra         = coalesce(try(var.linux_instances.user_data, null), "")
-  })
+  key_name  = try(var.linux_instances.key_name, null)
+  user_data = local.linux_userdata
   lifecycle {
-    ignore_changes = [user_data]
+    ignore_changes       = [user_data, ami]
+    replace_triggered_by = [terraform_data.linux_userdata]
   }
 
   tags = merge(
@@ -79,14 +96,11 @@ resource "aws_instance" "windows" {
     encrypted             = true
   }
 
-  key_name = try(var.windows_instances.key_name, null)
-  user_data = format("<powershell>\n%s\n</powershell>", templatefile("${local.userdata_dir}/win-userdata.ps1", {
-    username           = coalesce(try(var.windows_instances.username, null), "")
-    password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
-    extra              = coalesce(try(var.windows_instances.user_data, null), "")
-  }))
+  key_name  = try(var.windows_instances.key_name, null)
+  user_data = local.windows_userdata
   lifecycle {
-    ignore_changes = [user_data]
+    ignore_changes       = [user_data, ami]
+    replace_triggered_by = [terraform_data.windows_userdata]
   }
 
   tags = merge(

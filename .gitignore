@@ -11,6 +11,8 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 *.tfvars
+# HCP Terraform organization (copy from config/backend.hcl.exemple)
+config/*.hcl
 
 # IDE
 .vscode/

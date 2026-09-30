@@ -10,6 +10,26 @@ terraform {
 
 locals {
   userdata_dir = "${path.module}/../../shared/userdata"
+
+  linux_userdata = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
+    username      = coalesce(try(var.linux_instances.username, null), "")
+    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
+  })
+
+  windows_userdata = templatefile("${local.userdata_dir}/win-userdata.ps1", {
+    username           = ""
+    password_to_change = ""
+    extra              = coalesce(try(var.windows_instances.user_data, null), "")
+  })
+}
+
+resource "terraform_data" "linux_userdata" {
+  input = local.linux_userdata
+}
+
+resource "terraform_data" "windows_userdata" {
+  input = local.windows_userdata
 }
 
 resource "azurerm_linux_virtual_machine" "main" {
@@ -43,13 +63,10 @@ resource "azurerm_linux_virtual_machine" "main" {
   #   public_key = var.linux_instances.key_name
   # }
 
-  custom_data = base64encode(templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-    username      = coalesce(try(var.linux_instances.username, null), "")
-    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
-    extra         = coalesce(try(var.linux_instances.user_data, null), "")
-  }))
+  custom_data = base64encode(local.linux_userdata)
   lifecycle {
-    ignore_changes = [custom_data]
+    ignore_changes       = [custom_data]
+    replace_triggered_by = [terraform_data.linux_userdata]
   }
 
   tags = merge(
@@ -84,6 +101,10 @@ resource "azurerm_windows_virtual_machine" "main" {
     version   = "latest"
   }
 
+  lifecycle {
+    replace_triggered_by = [terraform_data.windows_userdata]
+  }
+
   tags = merge(
     var.tags,
     { Name = "${var.name_prefix}_windows_${count.index + 1}" }
@@ -100,10 +121,6 @@ resource "azurerm_virtual_machine_run_command" "windows_bootstrap" {
   source {
     # Admin user is already created by azurerm_windows_virtual_machine;
     # skip user creation and only install OpenSSH + run extra script.
-    script = templatefile("${local.userdata_dir}/win-userdata.ps1", {
-      username           = ""
-      password_to_change = ""
-      extra              = coalesce(try(var.windows_instances.user_data, null), "")
-    })
+    script = local.windows_userdata
   }
 }

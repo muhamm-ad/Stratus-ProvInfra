@@ -10,6 +10,26 @@ terraform {
 
 locals {
   userdata_dir = "${path.module}/../../shared/userdata"
+
+  linux_userdata = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
+    username      = coalesce(try(var.linux_instances.username, null), "")
+    password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
+    extra         = coalesce(try(var.linux_instances.user_data, null), "")
+  })
+
+  windows_userdata = templatefile("${local.userdata_dir}/win-userdata.ps1", {
+    username           = coalesce(try(var.windows_instances.username, null), "")
+    password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
+    extra              = coalesce(try(var.windows_instances.user_data, null), "")
+  })
+}
+
+resource "terraform_data" "linux_userdata" {
+  input = local.linux_userdata
+}
+
+resource "terraform_data" "windows_userdata" {
+  input = local.windows_userdata
 }
 
 data "google_compute_image" "ubuntu" {
@@ -46,15 +66,12 @@ resource "google_compute_instance" "linux" {
   }
 
   metadata = {
-    user-data = templatefile("${local.userdata_dir}/linux-userdata.yaml", {
-      username      = coalesce(try(var.linux_instances.username, null), "")
-      password_hash = coalesce(try(var.linux_instances.password_hash, null), "")
-      extra         = coalesce(try(var.linux_instances.user_data, null), "")
-    })
+    user-data = local.linux_userdata
   }
 
   lifecycle {
-    ignore_changes = [metadata]
+    ignore_changes       = [metadata]
+    replace_triggered_by = [terraform_data.linux_userdata]
   }
 
   labels = {
@@ -85,15 +102,12 @@ resource "google_compute_instance" "windows" {
   }
 
   metadata = {
-    windows-startup-script-ps1 = templatefile("${local.userdata_dir}/win-userdata.ps1", {
-      username           = coalesce(try(var.windows_instances.username, null), "")
-      password_to_change = coalesce(try(var.windows_instances.password_to_change, null), "")
-      extra              = coalesce(try(var.windows_instances.user_data, null), "")
-    })
+    windows-startup-script-ps1 = local.windows_userdata
   }
 
   lifecycle {
-    ignore_changes = [metadata]
+    ignore_changes       = [metadata]
+    replace_triggered_by = [terraform_data.windows_userdata]
   }
 
   labels = {
